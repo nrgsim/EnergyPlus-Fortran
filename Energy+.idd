@@ -61688,13 +61688,13 @@ ThermalStorage:Ice:Detailed,
        \type node
   A5 , \field Discharging Curve Object Type
        \type choice
-       \key QuadraticLinear
+       \key Curve:QuadraticLinear
   A6 , \field Discharging Curve Name
        \type alpha
        \object-list QuadLinearCurves
   A7 , \field Charging Curve Object Type
        \type choice
-       \key QuadraticLinear
+       \key Curve:QuadraticLinear
   A8 , \field Charging Curve Name
        \type alpha
        \object-list QuadLinearCurves
@@ -62044,7 +62044,9 @@ PlantLoop,
         \key UserDefinedFluidType
         \default Water
   A3 , \field User Defined Fluid Type
-       \note FluidAndGlycolNames are only required when Fluid Type is UserDefinedFluidType
+       \type object-list
+       \object-list FluidAndGlycolNames
+       \note This field is only required when Fluid Type is UserDefinedFluidType
   A4 , \field Plant Equipment Operation Scheme Name
         \required-field
         \type object-list
