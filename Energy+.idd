@@ -1,4 +1,4 @@
-!IDD_Version 8.1.0.009
+!IDD_Version 8.8.0.009
 ! **************************************************************************
 ! This file is the Input Data Dictionary (IDD) for EnergyPlus.
 ! The IDD defines the syntax and data model for each type of input "Object."
@@ -6640,6 +6640,83 @@ MaterialProperty:PhaseChange,
        \type real
        \default 0.0
 
+MaterialProperty:PhaseChangeDualCurve,
+    \memo Additional properties for temperature dependent thermal conductivity
+    \memo and enthalpy for Phase Change Materials (PCM) with separate melting and freezing curves.  
+    \memo HeatBalanceAlgorithm = CondFD(ConductionFiniteDifference) solution algorithm only.
+    \memo Constructions with this should use the detailed CondFD process.
+    \memo Has no effect with other HeatBalanceAlgorithm solution algorithms.
+    \format singleLine
+  A1,  \field Name
+       \required-field
+       \type object-list
+       \object-list MaterialName
+       \note Regular Material Name to which the additional properties will be added.
+       \note this the material name for the basic material properties.
+  A2, \field Hysteresis Method
+       \type choice
+       \key CurveShift
+       \key CurveTrack
+       \default CurveShift
+	   \note Hysteresis curve calculation methods,
+	   \note based on melting curve when temperature increases and freezing curve when temperature decreases.   
+	   \note CurveShift; Current timestep straight line shift to adjacent curve when temperatures change directions. 
+       \note CurveTrack; Previous timestep transition tracking to reach adjacent curve after each full transition. 
+  N1 , \field Temperature Coefficient for Thermal Conductivity
+       \note The base temperature is 20C.
+       \note This is the thermal conductivity change per degree excursion from 20C.
+       \note This variable conductivity function is overridden by the VariableThermalConductivity object, if present.
+       \units W/m-K2
+       \type real
+       \default 0.0
+  N2 , \field Latent Heat of Fusion
+       \required-field
+	   \units J/kg
+       \type real
+  N3 , \field Liquid State Specific Heat
+       \required-field
+       \units J/kg-K
+       \type real
+  N4 , \field High Temperature Difference of Melting Curve
+       \note The total melting range of the material is the sum of low and high temperature difference of melting curve. 
+	   \required-field
+       \units deltaC
+       \type real 
+  N5 , \field Peak Melting Temperature
+       \required-field
+	   \units C
+       \type real
+	   \note Must be different than Peak Freezing Temperature
+  N6 , \field Low Temperature Difference of Melting Curve
+  	   \note Note: The total melting range of the material is the sum of low and high temperature difference of melting curve.
+       \required-field
+	   \units deltaC
+       \type real
+  N7 , \field Latent Heat of Solidification
+       \required-field
+       \units J/kg
+       \type real
+  N8 , \field Solid State Specific Heat
+       \required-field
+	   \units J/kg-K
+       \type real  
+  N9 , \field High Temperature Difference of Freezing Curve
+       \note The total freezing range of the material is the sum of low and high temperature difference of freezing curve.	
+       \required-field
+       \units deltaC
+       \type real   
+ N10 , \field Peak Freezing Temperature
+       \required-field
+       \units C
+       \type real
+	   \note Must be different than Peak Melting Temperature
+ N11 ; \field Low Temperature Difference of Freezing Curve
+  	   \note The total freezing range of the material is the sum of low and high temperature difference of freezing curve. 
+	   \required-field
+	   \units deltaC
+	   \type real
+
+	   
 MaterialProperty:VariableThermalConductivity,
     \memo Additional properties for temperature dependent thermal conductivity
     \memo using piecewise linear temperature-conductivity function.
@@ -61611,13 +61688,13 @@ ThermalStorage:Ice:Detailed,
        \type node
   A5 , \field Discharging Curve Object Type
        \type choice
-       \key Curve:QuadraticLinear
+       \key QuadraticLinear
   A6 , \field Discharging Curve Name
        \type alpha
        \object-list QuadLinearCurves
   A7 , \field Charging Curve Object Type
        \type choice
-       \key Curve:QuadraticLinear
+       \key QuadraticLinear
   A8 , \field Charging Curve Name
        \type alpha
        \object-list QuadLinearCurves
@@ -61967,9 +62044,7 @@ PlantLoop,
         \key UserDefinedFluidType
         \default Water
   A3 , \field User Defined Fluid Type
-       \type object-list
-       \object-list FluidAndGlycolNames
-       \note This field is only required when Fluid Type is UserDefinedFluidType
+       \note FluidAndGlycolNames are only required when Fluid Type is UserDefinedFluidType
   A4 , \field Plant Equipment Operation Scheme Name
         \required-field
         \type object-list

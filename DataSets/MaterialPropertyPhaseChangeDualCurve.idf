@@ -1,0 +1,740 @@
+!-Generator IDFEditor 1.44
+!-Option SortedOrder
+
+!-NOTE: All comments with '!-' are ignored by the IDFEditor and are generated automatically.
+!-      Use '!' comments if they need to be retained when using the IDFEditor.
+
+
+!-   ===========  ALL OBJECTS IN CLASS: MATERIAL ===========
+
+Material,
+    BioPCM DSCM27Q18,        !- Name
+    VeryRough,               !- Roughness
+    0.011,                   !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM51Q18,        !- Name
+    VeryRough,               !- Roughness
+    0.020828,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM91Q18,        !- Name
+    VeryRough,               !- Roughness
+    0.037084,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM182Q18,       !- Name
+    VeryRough,               !- Roughness
+    0.074168,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM27Q21,        !- Name
+    VeryRough,               !- Roughness
+    0.011,                   !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM51Q21,        !- Name
+    VeryRough,               !- Roughness
+    0.020828,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM91Q21,        !- Name
+    VeryRough,               !- Roughness
+    0.037084,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM182Q21,       !- Name
+    VeryRough,               !- Roughness
+    0.074168,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM27Q23,        !- Name
+    VeryRough,               !- Roughness
+    0.011,                   !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM51Q23,        !- Name
+    VeryRough,               !- Roughness
+    0.020828,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM91Q23,        !- Name
+    VeryRough,               !- Roughness
+    0.037084,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM182Q23,       !- Name
+    VeryRough,               !- Roughness
+    0.074168,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM27Q25,        !- Name
+    VeryRough,               !- Roughness
+    0.011,                   !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM51Q25,        !- Name
+    VeryRough,               !- Roughness
+    0.020828,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM91Q25,        !- Name
+    VeryRough,               !- Roughness
+    0.037084,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM182Q25,       !- Name
+    VeryRough,               !- Roughness
+    0.074168,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM27Q27,        !- Name
+    VeryRough,               !- Roughness
+    0.011,                   !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM51Q27,        !- Name
+    VeryRough,               !- Roughness
+    0.020828,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM91Q27,        !- Name
+    VeryRough,               !- Roughness
+    0.037084,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM182Q27,       !- Name
+    VeryRough,               !- Roughness
+    0.074168,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM27Q29,        !- Name
+    VeryRough,               !- Roughness
+    0.011,                   !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM51Q29,        !- Name
+    VeryRough,               !- Roughness
+    0.020828,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM91Q29,        !- Name
+    VeryRough,               !- Roughness
+    0.037084,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM182Q29,       !- Name
+    VeryRough,               !- Roughness
+    0.074168,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM27Q35,        !- Name
+    VeryRough,               !- Roughness
+    0.011,                   !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM51Q35,        !- Name
+    VeryRough,               !- Roughness
+    0.020828,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM91Q35,        !- Name
+    VeryRough,               !- Roughness
+    0.037084,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+Material,
+    BioPCM DSCM182Q35,       !- Name
+    VeryRough,               !- Roughness
+    0.074168,                !- Thickness {m}
+    0.2,                     !- Conductivity {W/m-K}
+    235,                     !- Density {kg/m3}
+    1970,                    !- Specific Heat {J/kg-K}
+    0.9,                     !- Thermal Absorptance
+    0.1,                     !- Solar Absorptance
+    0.5;                     !- Visible Absorptance
+
+
+!-   ===========  ALL OBJECTS IN CLASS: MATERIALPROPERTY:PHASECHANGEDUALCURVE ===========
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM27Q18,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    19.5,                    !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    17.5,                    !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM51Q18,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    19.5,                    !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    17.5,                    !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM91Q18,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    19.5,                    !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    17.5,                    !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM182Q18,       !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    19.5,                    !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    17.5,                    !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM27Q21,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    22,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    20,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM51Q21,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    22,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    20,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM91Q21,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    22,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    20,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM182Q23,       !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    22,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    20,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM27Q23,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    24,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    22,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM51Q23,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    24,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    22,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM91Q23,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    24,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    22,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM182Q23,       !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    24,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    22,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM27Q25,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    26,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    24,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM51Q25,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    26,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    24,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM91Q25,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    26,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    24,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM182Q25,       !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    26,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    24,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM27Q27,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    28,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    24,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM51Q27,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    28,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    24,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM91Q27,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    28,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    24,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM182Q27,       !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    28,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    24,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM27Q29,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    30,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    26,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM51Q29,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    30,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    26,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM91Q29,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    30,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    26,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM182Q29,       !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    30,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    26,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM27Q35,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    36,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    26,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM51Q35,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    36,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    34,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM91Q35,        !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    36,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    34,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+
+MaterialProperty:PhaseChangeDualCurve,
+    BioPCM DSCM182Q35,       !- Name
+    CurveShift,              !- Hysteresis Method
+    0,                       !- Temperature Coefficient for Thermal Conductivity {W/m-K2}
+    200000,                  !- Latent Heat of Fusion {J/kg}
+    2000,                    !- Liquid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Melting Curve {deltaC}
+    36,                      !- Peak Melting Temperature {C}
+    1,                       !- Low Temperature Difference of Melting Curve {deltaC}
+    200000,                  !- Latent Heat of Solidification {J/kg}
+    2000,                    !- Solid State Specific Heat {J/kg-K}
+    1,                       !- High Temperature Difference of Freezing Curve {deltaC}
+    34,                      !- Peak Freezing Temperature {C}
+    1;                       !- Low Temperature Difference of Freezing Curve {deltaC}
+

@@ -17,6 +17,7 @@ MODULE DataHeatBalance      ! EnergyPlus Data-Only Module
           !                      Dec 2006 (DJS-PSU) Added ecoroof material
           !                      Dec 2008 TH added new properties to MaterialProperties and
           !                              ConstructionData for thermochromic windows
+		  !                      Sep 2014 (JDC-NRGSIM-PCES) added Dual Curve PCM Model 
           !       RE-ENGINEERED  na
 
           ! PURPOSE OF THIS MODULE:
@@ -445,6 +446,54 @@ TYPE MaterialProperties
                                            !  fraction of the shade area
 
   LOGICAL :: EMPDMaterialProps = .false.    ! True if EMPD properties have been assigned
+!-------------------------------------------------------------------------------------------------------------------
+! Dual Curve PCM Model;
+! Developed based on the work of Ramprasad Chandrasekharan, Oklahoma State University
+! by Jeremiah D Crossett of PHASE CHANGE ENEGRY SOULTIONS INC.
+
+
+ REAL(r64) :: tk1          =0.0  ! Temperature coefficient for thermal conductivity
+  REAL(r64) :: TempEnth(25,2) = -100. !  Temperature enthalpy Function Pairs,TempEnth(1,1)= first Temp
+                              !  TempEnth(1,2) = First Enthalpy, TempEnth(2,1) = second  Temp, etc.
+  REAL(r64) :: TempCond(25,2) = -100. !  Temperature thermal conductivity Function Pairs,TempCond(1,1)= first Temp
+                              !  Tempcond(1,2) = First conductivity, TempEnth(2,1) = second  Temp, etc.
+!-------------------------------------------------------------------------------------------------------------------
+  REAL(r64) :: TempEnthMelting(25,2) = -100. !  Temperature enthalpy Function Pairs for melting curve of PCM,
+                              !  TempEnthMelting(1,1)= first Temp, TempEnthMelting(1,2) = First Enthalpy, 
+							  !  TempEnthMelting(2,1) = second  Temp, etc.
+  REAL(r64) :: TempEnthFreezing(25,2) = -100. !  Temperature enthalpy Function Pairs for freezing curve of PCM,
+                              !  TempEnthFreezing(1,1)= first Temp, TempEnthFreezing(1,2) = First Enthalpy, 
+							  !  TempEnthFreezing(2,1) = second  Temp, etc.
+  REAL(r64) :: TempEnthCrystallizationPoint(1,2) = -100. !  Temperature enthalpy Function Pairs for crystallization point of PCM,
+                              !  TempEnthCrystallizationPoint(1,1)= first Temp, TempEnthCrystallizationPoint(1,2) = First Enthalpy, 
+							  !  TempEnthCrystallizationPoint(2,1) = second  Temp, etc.
+
+  REAL(r64) :: TempEnthModified(50,6,2) = -100. !  Temperature enthalpy Function Pairs,TempEnth(1,1)= first Temp
+                              !  TempEnth(1,2) = First Enthalpy, TempEnth(2,1) = second  Temp, etc.
+  REAL(r64) :: TempEnthMeltingModified(50,6,2) = -100. !  Temperature enthalpy Function Pairs for melting curve of PCM,
+                              !  TempEnthMelting(1,1)= first Temp, TempEnthMelting(1,2) = First Enthalpy, 
+							  !  TempEnthMelting(2,1) = second  Temp, etc.
+  REAL(r64) :: TempEnthFreezingModified(50,6,2) = -100. !  Temperature enthalpy Function Pairs for freezing curve of PCM,
+                              !  TempEnthFreezing(1,1)= first Temp, TempEnthFreezing(1,2) = First Enthalpy, 
+							  !  TempEnthFreezing(2,1) = second Temp, etc.
+                              
+  REAL(r64) :: DeltaHF        ! Latent Heat of Fusion/ Melting of PCM
+  REAL(r64) :: DeltaHS        ! Latent Heat of Solidification of PCM
+  REAL(r64) :: CpSolid        ! Specific Heat of PCM in Solid State {kJ/kg-K}
+  REAL(r64) :: CpLiquid       ! Specific Heat of PCM in Liquid State {kJ/kg-K}
+  REAL(r64) :: Tm             ! Melting Temperature of PCM {C}
+  REAL(r64) :: Tf             ! Freezing Temperature of PCM {C}
+  REAL(r64) :: Tau1           ! Width of Melting Zone ( tau1 = Tm - T1){C} 
+  REAL(r64) :: Tau2           ! Width of Melting Zone ( tau2 = T2 - Tm){C} 
+  REAL(r64) :: Tau1Prime      ! Width of Freezing Zone ( tau1' = Tf - T1){C} 
+  REAL(r64) :: Tau2Prime      ! Width of Melting Zone ( tau2' = T2 - Tf){C} 
+  
+  REAL(r64) :: TempLowPCM   =0.0		!lowest temperature at which phase change starts (melting)
+  REAL(r64) :: TempHighPCM  =0.0		!highest temperature at which phase change is complete to liquid state
+  REAL(r64) :: TempLowPCF   =0.0		!lowest temperature at which phase change starts (Freezing)
+  REAL(r64) :: TempHighPCF  =0.0		!highest temperature at which phase change is complete to liquid state
+  
+  !-------------------------------------------------------------------------------------------------------------------
   REAL(r64) :: EMPDVALUE    = 0.0d0
   REAL(r64) :: MoistACoeff  = 0.0d0
   REAL(r64) :: MoistBCoeff  = 0.0d0
@@ -3303,7 +3352,7 @@ FUNCTION ComputeNominalUwithConvCoeffs(numSurf,isValid) RESULT(NominalUwithConvC
           outsideFilm = 0.0810106d0 ! All semi-exterior surfaces
         END SELECT
       ELSE
-        outsideFilm = 0.0810106d0 ! All semi-exterior surfaces
+      outsideFilm = 0.0810106d0 ! All semi-exterior surfaces
       ENDIF
   END SELECT
   ! interior conditions

@@ -6840,7 +6840,8 @@ SUBROUTINE GetSurfaceHeatTransferAlgorithmOverrides(ErrorsFound)
 
   ! test for missing materials for algorithms selected
   NumEMPDMat=GetNumObjectsFound('MaterialProperty:MoisturePenetrationDepth:Settings')
-  NumPCMat=GetNumObjectsFound('MaterialProperty:PhaseChange') ! needs detailed algo
+  NumPCMat=GetNumObjectsFound('MaterialProperty:PhaseChange') + &
+           GetNumObjectsFound('MaterialProperty:PhaseChangeDualCurve') !JDC added detailed algo 2014
   NumVTCMat=GetNumObjectsFound('MaterialProperty:VariableThermalConductivity')
   NumHAMTMat1=GetNumObjectsFound('MaterialProperty:HeatAndMoistureTransfer:Settings')
   NumHAMTMat2=GetNumObjectsFound('MaterialProperty:HeatAndMoistureTransfer:SorptionIsotherm')

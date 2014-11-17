@@ -108,6 +108,11 @@
 !      by David Sailor and his students. It is based on the FASST vegetation models developed by Frankenstein and
 !      Koenig for the US Army Corps of Engineers.
 
+!      Portions of the HeatBalFiniteDifferenceManager.f90 & DataHeatBalance.f90 modules, (Dual Curve with hystrisis PCM Model)
+!      were developed based on the work of Ramprasad Chandrasekharan, Oklahoma State University
+!      by Jeremiah D Crossett of PHASE CHANGE ENEGRY SOULTIONS INC (www.phasechange.com) with assistance from 
+!      Edwin S LEE, PhD  
+
 !      The HAMT (Heat And Moisture Transfer) model, first introduced in EnergyPlus v3.0.0 was developed by Phillip Biddulph,
 !      Complex Built Environment Systems, The Bartlett School of Graduate Studies, University College London, Gower Street,
 !      London WC1E 6BT, United Kingdom. http://www.cbes.ucl.ac.uk/.
