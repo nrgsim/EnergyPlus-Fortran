@@ -8,7 +8,7 @@ MODULE HeatBalFiniteDiffManager
           !       RE-ENGINEERED  Curtis Pedersen, 2006, Changed to Implicit FD calc for conduction,
           !                      and included enthalpy formulations for phase change materials.       
           !		 
-          !                     2014, Jeremiah D. Crossett of Phase Change Energy Solutions added Phase Change Dual Curve PCM Model based on the work 
+          !                     2014, Jeremiah D. Crossett of NRGSIM INC.  added Phase Change Dual Curve PCM Model based on the work 
           !                     of Ramprasad Chandrasekharan at Oklahoma State University.
  
 
@@ -1221,8 +1221,8 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
                              'Zone','State',TRIM(Surface(SurfNum)%Name)) !This is a renamed copy of CondFD Inside Heat Flux to Surface. 
 							 !This output is more useful than the "Surface Average Face Conduction Heat Transfer Rate Per Area that replaced it,
 							 !due to it only reporting on CondFD surfaces.  
-!Som Shrestha "Compare the heat flux through the walls to the conditioned space using the output variable “CondFD Inside Heat Flux to Surface”.
-! The reporting variable “CondFD Inside Surface Heat Flux” has an issue therefore the new variable was added to resolve it." 
+!Som Shrestha "Compare the heat flux through the walls to the conditioned space using the output variable Â“CondFD Inside Heat Flux to SurfaceÂ”.
+! The reporting variable Â“CondFD Inside Surface Heat FluxÂ” has an issue therefore the new variable was added to resolve it." 
 !VE START        		       
         CALL SetupOutputVariable('CondFD Surface Phase Change State Node '//TRIM(TrimSigDigits(Lay))//' [ ]',&
            SurfaceFD(SurfNum)%PhaseChangeState(Lay),  &
@@ -5233,7 +5233,7 @@ END SUBROUTINE CheckFDSurfaceTempLimits
 
 !     NOTICE
 !
-!     Copyright © 1996-2013 The Board of Trustees of the University of Illinois
+!     Copyright Â© 1996-2013 The Board of Trustees of the University of Illinois
 !     and The Regents of the University of California through Ernest Orlando Lawrence
 !     Berkeley National Laboratory.  All rights reserved.
 !
