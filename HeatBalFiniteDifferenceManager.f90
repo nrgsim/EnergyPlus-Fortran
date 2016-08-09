@@ -214,8 +214,6 @@ REAL(r64) :: TcF
 REAL(r64) :: Tc
 REAL(r64) :: TcOld 
 INTEGER   :: HysteresisFlag             = 1       ! 1 Dual curve Hysteresis model                     
-!INTEGER :: HysteresisMethod             = 0       ! 0 for transition behaviour of PCM 
-                                                  ! Type of the Hysteresis Method selected default is 'CurveShift'
 !VE END 
           ! Reporting routines for module
 PRIVATE ReportFiniteDiffInits
@@ -511,22 +509,6 @@ CondFDMat=GetNumObjectsFound('MaterialProperty:PhaseChangeHysteresis')
                   ErrorsFound=.true.
                 CYCLE
             ENDIF
-		!VE-2016--CC Is this call needed? JDC Not likely so commented off	
-		!PhaseChangeHysteresisSettings
-!		    CALL GetObjectItem(TRIM(cCurrentModuleObject),Loop,AlphaNameP,MaterialNumAlpha, &
-!                      MaterialProps,MaterialNumProp,IOSTAT,  &
-!                  AlphaBlank=lAlphaFieldBlanks,NumBlank=lNumericFieldBlanks,  &
-!                   AlphaFieldnames=cAlphaFieldNames,NumericFieldNames=cNumericFieldNames)
-
-!                SELECT CASE (AlphaNameP(2))
-!                 CASE ('CURVESHIFT')
-!                   HysteresisMethod = 0
-!                 CASE ('CURVETRACK')
-!                   HysteresisMethod = 1
-!                CASE DEFAULT
-!                   HysteresisMethod = 0
-!                   AlphaNameP(2) = 'CURVESHIFT'
-!                END SELECT
 
             IF (Material(MaterNum)%Group /= RegularMaterial) THEN
               CALL ShowSevereError(TRIM(cCurrentModuleObject)//  &
@@ -1590,23 +1572,15 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
         !to either liquid or solid), the temperature at which it changes its direction is saved 
         !in the variable  PhaseChangeTemperatureReverse, and this variable will hold the value of the temperature until
         !the next reverse in the process takes place.
-!        IF(HysteresisMethod ==0) THEN
-            If ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 1 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 0)) Then
-                SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
-            ElseIf ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 0 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 1 )) Then
-                SurfaceFD(Surf) % PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
-            ELSE If ((SurfaceFD(Surf)%PhaseChangeStateold(I) == -1 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 0)) Then
-                SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
-            ElseIf ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 0 .and. SurfaceFD(Surf)%PhaseChangeState(I) == -1)) Then
-                SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)            
-            End If    
-!        ELSE IF (HysteresisMethod ==1) THEN
-!            IF ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 1 .and. SurfaceFD(Surf)%PhaseChangeState(I) == -1)) Then
-!                SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
-!            ELSE IF ((SurfaceFD(Surf)%PhaseChangeStateold(I) == -1 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 1 )) Then
-!                SurfaceFD(Surf) % PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
-!            END IF
-!        END IF
+        If ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 1 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 0)) Then
+            SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
+        ElseIf ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 0 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 1 )) Then
+            SurfaceFD(Surf) % PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
+        ELSE If ((SurfaceFD(Surf)%PhaseChangeStateold(I) == -1 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 0)) Then
+            SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
+        ElseIf ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 0 .and. SurfaceFD(Surf)%PhaseChangeState(I) == -1)) Then
+            SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)            
+        End If    
      End Do
 
      SurfaceFD(Surf)%PhaseChangeDeltaTOld=SurfaceFD(Surf)%PhaseChangeDeltaT
@@ -2254,19 +2228,10 @@ SurfaceFD(Surface(Surf)%ExtBoundCond)%TT, & !potential-lkl-from old      CALL In
                         Tau2 = Material(MatLay)%Tau2
                         DeltaH = Material(MatLay)%DeltaHF
                         
-!                        IF (HysteresisMethod ==0) THEN 
-                            IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
-                                (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
-                               PhaseChangeState(I) = 0
-                            END IF
-!                        ELSE IF (HysteresisMethod ==1) THEN 
-!                            IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1)) THEN 
-!                                Tc = TcF
-!                                Tau1 = Material(MatLay)%Tau1Prime
-!                                Tau2 = Material(MatLay)%Tau2Prime
-!                                DeltaH = Material(MatLay)%DeltaHS
-!                            END IF
-!                        END IF
+                         IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                             (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                            PhaseChangeState(I) = 0
+                         END IF
                     ELSE IF(TDT(I)>TempTHighPCM) THEN
                        PhaseChangeState(I)=-2
                         Tc = TcM
@@ -2289,19 +2254,10 @@ SurfaceFD(Surface(Surf)%ExtBoundCond)%TT, & !potential-lkl-from old      CALL In
                         Tau1 = Material(MatLay)%Tau1Prime
                         Tau2 = Material(MatLay)%Tau2Prime
                         DeltaH = Material(MatLay)%DeltaHS
-!                       IF (HysteresisMethod ==0) THEN 
-                            IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
-                               (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1)) THEN 
-                               PhaseChangeState(I) = 0
-                            END IF
-!                       ELSE IF (HysteresisMethod ==1) THEN 
-!                            IF((PhaseChangeStateOld(I)==2 .AND.PhaseChangeState(I) == 1)) THEN 
-!                                Tc = TcM
-!                                Tau1 = Material(MatLay)%Tau1
-!                                Tau2 = Material(MatLay)%Tau2
-!                                DeltaH = Material(MatLay)%DeltaHF
-!                            END IF
-!                        END IF
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1)) THEN 
+                           PhaseChangeState(I) = 0
+                        END IF
                     ELSE IF (TDT(I)>TempThighPCF) THEN
                        PhaseChangeState(I)=-2
                         Tc = TcF
@@ -2310,44 +2266,27 @@ SurfaceFD(Surface(Surf)%ExtBoundCond)%TT, & !potential-lkl-from old      CALL In
                         DeltaH = Material(MatLay)%DeltaHS
                     END IF
                  END IF
-                 
-!                IF(HysteresisMethod == 1) THEN
-!                    PhaseChangeTransition(I) = 0
-!                ELSE IF (HysteresisMethod == 0) THEN
                     
-                    IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==2)THEN    
-                        PhaseChangeTransition(I) =1
-                    ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
-                        PhaseChangeTransition(I) =1
-                       PhaseChangeState(I)=0
-                    ELSE IF(PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I)==0 )THEN    
-                        PhaseChangeTransition(I) =1
-                    ELSE IF(PhaseChangeStateOld(I)==2 .AND.PhaseChangeState(I)==0)THEN   
-                        PhaseChangeTransition(I) =1
-                    ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
-                        PhaseChangeTransition(I) =1
-                    ELSE 
-                        PhaseChangeTransition(I) = 0
-                    END IF
-                    
-!                END IF
+                 IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==2)THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                     PhaseChangeTransition(I) =1
+                    PhaseChangeState(I)=0
+                 ELSE IF(PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I)==0 )THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==2 .AND.PhaseChangeState(I)==0)THEN   
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE 
+                     PhaseChangeTransition(I) = 0
+                 END IF
                 
 				IF (HysteresisFlag == 1) THEN   
                     IF(PhaseChangeTransition(I) == 0)THEN
                         EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                    
                         EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
                         
-!                        IF(HysteresisMethod ==1)THEN
-!                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
-!                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
-!                            IF(TDT(I) < Tr(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
-!                                 Tc = TcOld
-!                                 EnthNew(I) = SpecEnthalpy(I,TDT(I), TcOld, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)  
-!                            ELSE IF (TDT(I) > Tr(I) .AND. EnthNew(I) < EnthalpyF(I)) THEN
-!                                 Tc= TcOld
-!                                 EnthNew(I) = SpecEnthalpy(I,TDT(I), TcOld, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)
-!                            END IF
-!                        END IF
                         
                     ELSE IF(PhaseChangeTransition(I) ==1) THEN     
                          IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                        
@@ -2757,19 +2696,10 @@ SUBROUTINE InteriorNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,Ent
                         Tau1 = Material(MatLay)%Tau1
                         Tau2 = Material(MatLay)%Tau2
                         DeltaH = Material(MatLay)%DeltaHF                        
-!                        IF (HysteresisMethod ==0) THEN 
-                            IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
-                                (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
-                               PhaseChangeState(I) = 0
-                            END IF
-!                        ELSE IF (HysteresisMethod ==1) THEN 
-!                            IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1)) THEN 
-!                                Tc = TcF
-!                                Tau1 = Material(MatLay)%Tau1Prime
-!                                Tau2 = Material(MatLay)%Tau2Prime
-!                                DeltaH = Material(MatLay)%DeltaHS
-!                            END IF
-!                        END IF
+                         IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                             (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                            PhaseChangeState(I) = 0
+                         END IF
                     ELSE IF(TDT(I)>TempTHighPCM) THEN
                        PhaseChangeState(I)=-2
                         Tc = TcM
@@ -2790,19 +2720,10 @@ SUBROUTINE InteriorNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,Ent
                         Tau1 = Material(MatLay)%Tau1Prime
                         Tau2 = Material(MatLay)%Tau2Prime
                         DeltaH = Material(MatLay)%DeltaHS
-!                       IF (HysteresisMethod ==0) THEN 
-                            IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
-                               (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1)) THEN 
-                               PhaseChangeState(I) = 0
-                            END IF
-!                       ELSE IF (HysteresisMethod ==1) THEN 
-!                            IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1)) THEN 
-!                                Tc = TcM
-!                                Tau1 = Material(MatLay)%Tau1
-!                                Tau2 = Material(MatLay)%Tau2
-!                                DeltaH = Material(MatLay)%DeltaHF
-!                            END IF
-!                        END IF
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1)) THEN 
+                           PhaseChangeState(I) = 0
+                        END IF
                     ELSE IF (TDT(I)>TempThighPCF) THEN
                        PhaseChangeState(I)=-2
                         Tc = TcF
@@ -2811,42 +2732,28 @@ SUBROUTINE InteriorNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,Ent
                         DeltaH = Material(MatLay)%DeltaHS
                     END IF
                  END IF                
-!                IF(HysteresisMethod == 1) THEN
-!                    PhaseChangeTransition(I) = 0
-!                    Tc= TcOld
-!                ELSE IF (HysteresisMethod == 0) THEN                   
-                    IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
-                       PhaseChangeTransition(I) =1
-                    ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
-                       PhaseChangeTransition(I) =1
-                       PhaseChangeState(I)=0
-                    ELSE IF(PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I)==0 )THEN    
-                        PhaseChangeTransition(I) =1
-                    ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
-                        PhaseChangeTransition(I) =1
-                    ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
-                        PhaseChangeTransition(I) =1
-                    ELSE 
-                        PhaseChangeTransition(I) = 0
-                    END IF                  
-!                END IF
+                 IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
+                    PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                    PhaseChangeTransition(I) =1
+                    PhaseChangeState(I)=0
+                 ELSE IF(PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I)==0 )THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE 
+                     PhaseChangeTransition(I) = 0
+                 END IF                  
 				IF (HysteresisFlag == 1) THEN  !VE-2016--CC is this stuff needed? JDC I really do not think so. 
                     IF(PhaseChangeTransition(I) == 0)THEN
                         EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                    
                         EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                         
-!                        IF(HysteresisMethod ==1)THEN
-!                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
-!                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)                            
-!                           IF(TDT(I) < Tr(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
-!                               Tc = TcOld
-!                               EnthNew(I) = SpecEnthalpy(I,TDT(I), TcOld, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                                
-!                            ELSE IF (TDT(I) > Tr(I) .AND. EnthNew(I) < EnthalpyF(I)) THEN
-!!!!!!!!!!!!!!!1111------- Is this correct?
-                            IF (TDT(I) > Tr(I) .AND. EnthNew(I) < EnthalpyF(I)) THEN
-                                Tc= TcOld
-                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcOld, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)
-                            END IF
-!                        END IF                       
+                        IF (TDT(I) > Tr(I) .AND. EnthNew(I) < EnthalpyF(I)) THEN
+                            Tc= TcOld
+                            EnthNew(I) = SpecEnthalpy(I,TDT(I), TcOld, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                        END IF
                     ELSE IF(PhaseChangeTransition(I) ==1) THEN     
                           IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                                                    
                             EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
@@ -4852,19 +4759,10 @@ END IF
                         Tau2 = Material(MatLay)%Tau2
                         DeltaH = Material(MatLay)%DeltaHF
                         
-!                        IF (HysteresisMethod ==0) THEN 
-                            IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
-                                (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
-                               PhaseChangeState(I) = 0
-                            END IF
-!                        ELSE IF (HysteresisMethod ==1) THEN 
-!                            IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1)) THEN 
-!                                Tc = TcF
-!                                Tau1 = Material(MatLay)%Tau1Prime
-!                                Tau2 = Material(MatLay)%Tau2Prime
-!                                DeltaH = Material(MatLay)%DeltaHS
-!                            END IF
-!                        END IF
+                         IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                             (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                            PhaseChangeState(I) = 0
+                         END IF
                     ELSE IF(TDT(I)>TempTHighPCM) THEN
                        PhaseChangeState(I)=-2
                        Tc = TcM
@@ -4887,19 +4785,10 @@ END IF
                        Tau1 = Material(MatLay)%Tau1Prime
                        Tau2 = Material(MatLay)%Tau2Prime
                        DeltaH = Material(MatLay)%DeltaHS
-!                       IF (HysteresisMethod ==0) THEN 
-                            IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
-                               (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1)) THEN 
-                               PhaseChangeState(I) = 0
-                            END IF
-!                       ELSE IF (HysteresisMethod ==1) THEN 
-!                            IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1)) THEN 
-!                                Tc = TcM
-!                                Tau1 = Material(MatLay)%Tau1
-!                                Tau2 = Material(MatLay)%Tau2
-!                                DeltaH = Material(MatLay)%DeltaHF
-!                            END IF
-!                        END IF
+                       IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                          (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1)) THEN 
+                          PhaseChangeState(I) = 0
+                       END IF
                     ELSE IF (TDT(I)>TempThighPCF) THEN
                        PhaseChangeState(I)=-2
                        Tc = TcF
@@ -4909,41 +4798,25 @@ END IF
                     END IF
                  END IF
                  
-!                IF(HysteresisMethod == 1) THEN
-!                    PhaseChangeTransition(I) = 0
-!                ELSE IF (HysteresisMethod == 0) THEN                    
-                    IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
-                       PhaseChangeTransition(I) =1
-                    ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
-                       PhaseChangeTransition(I) =1
-                       PhaseChangeState(I)=0
-                    ELSE IF(PhaseChangeStateOld(I)==1.AND.PhaseChangeState(I)==0 )THEN    
-                        PhaseChangeTransition(I) =1
-                    ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
-                        PhaseChangeTransition(I) =1
-                    ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
-                        PhaseChangeTransition(I) =1
-                    ELSE 
-                        PhaseChangeTransition(I) = 0
-                    END IF                   
-!                END IF
+                 IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
+                    PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                    PhaseChangeTransition(I) =1
+                    PhaseChangeState(I)=0
+                 ELSE IF(PhaseChangeStateOld(I)==1.AND.PhaseChangeState(I)==0 )THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE 
+                     PhaseChangeTransition(I) = 0
+                 END IF                   
                 
 				IF (HysteresisFlag == 1) THEN    
                     IF(PhaseChangeTransition(I) == 0)THEN
                         EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                    
                         EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
-                        
-!                        IF(HysteresisMethod ==1)THEN
-!                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
-!                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
-!                            IF(TDT(I) < Tr(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
-!                                 Tc = TcOld
-!                                 EnthNew(I) = SpecEnthalpy(I,TDT(I), TcOld, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)  
-!                            ELSE IF (TDT(I) > Tr(I) .AND. EnthNew(I) < EnthalpyF(I)) THEN
-!                                 Tc= TcOld
-!                                 EnthNew(I) = SpecEnthalpy(I,TDT(I), TcOld, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)
-!                            END IF
-!                        END IF
                         
                     ELSE IF(PhaseChangeTransition(I) ==1) THEN     
                          IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                        
