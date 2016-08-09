@@ -17,7 +17,7 @@ MODULE DataHeatBalance      ! EnergyPlus Data-Only Module
           !                      Dec 2006 (DJS-PSU) Added ecoroof material
           !                      Dec 2008 TH added new properties to MaterialProperties and
           !                              ConstructionData for thermochromic windows
-		  !                      Sep 2014 (JDC-NRGSIM-PCES) added Dual Curve PCM Model 
+		  !                      2013-2016 (JDC-NRGsim) added Hysteresis PCM Model 
           !       RE-ENGINEERED  na
 
           ! PURPOSE OF THIS MODULE:
@@ -447,9 +447,9 @@ TYPE MaterialProperties
 
   LOGICAL :: EMPDMaterialProps = .false.    ! True if EMPD properties have been assigned
 !-------------------------------------------------------------------------------------------------------------------
-! Dual Curve PCM Model;
+! Hysteresis PCM Model;
 ! Developed based on the work of Ramprasad Chandrasekharan, Oklahoma State University
-! by Jeremiah D Crossett of PHASE CHANGE ENEGRY SOULTIONS INC.
+! by Jeremiah D Crossett and Chad Coates of NRGsim Inc. 
 
 
  REAL(r64) :: tk1          =0.0  ! Temperature coefficient for thermal conductivity
@@ -478,7 +478,7 @@ TYPE MaterialProperties
 							  !  TempEnthFreezing(2,1) = second Temp, etc.
                               
   REAL(r64) :: DeltaHF        ! Latent Heat of Fusion/ Melting of PCM
-  REAL(r64) :: DeltaHS        ! Latent Heat of Solidification of PCM
+  REAL(r64) :: DeltaHS        ! Latent Heat of Solidification/freezing of PCM
   REAL(r64) :: CpSolid        ! Specific Heat of PCM in Solid State {kJ/kg-K}
   REAL(r64) :: CpLiquid       ! Specific Heat of PCM in Liquid State {kJ/kg-K}
   REAL(r64) :: Tm             ! Melting Temperature of PCM {C}
@@ -489,9 +489,9 @@ TYPE MaterialProperties
   REAL(r64) :: Tau2Prime      ! Width of Melting Zone ( tau2' = T2 - Tf){C} 
   
   REAL(r64) :: TempLowPCM   =0.0		!lowest temperature at which phase change starts (melting)
-  REAL(r64) :: TempHighPCM  =0.0		!highest temperature at which phase change is complete to liquid state
+  REAL(r64) :: TempHighPCM  =0.0		!highest temperature at which phase change is complete to liquified state
   REAL(r64) :: TempLowPCF   =0.0		!lowest temperature at which phase change starts (Freezing)
-  REAL(r64) :: TempHighPCF  =0.0		!highest temperature at which phase change is complete to liquid state
+  REAL(r64) :: TempHighPCF  =0.0		!highest temperature at which phase change is complete to crystallization state.
   
   !-------------------------------------------------------------------------------------------------------------------
   REAL(r64) :: EMPDVALUE    = 0.0d0

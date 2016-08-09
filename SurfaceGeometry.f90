@@ -6,6 +6,7 @@ MODULE SurfaceGeometry
   !       AUTHOR         Linda Lawrie
   !       DATE WRITTEN   June 2000
   !       MODIFIED       DJS (PSU Dec 2006) to add ecoroof
+  !       MODIFIED       JDC (NRGsim 2013-2016) to add hystrisis PCM Model
   !       RE-ENGINEERED  na
 
   ! PURPOSE OF THIS MODULE:
@@ -6841,7 +6842,7 @@ SUBROUTINE GetSurfaceHeatTransferAlgorithmOverrides(ErrorsFound)
   ! test for missing materials for algorithms selected
   NumEMPDMat=GetNumObjectsFound('MaterialProperty:MoisturePenetrationDepth:Settings')
   NumPCMat=GetNumObjectsFound('MaterialProperty:PhaseChange') + &
-           GetNumObjectsFound('MaterialProperty:PhaseChangeDualCurve') !JDC added detailed algo 2014
+           GetNumObjectsFound('MaterialProperty:PhaseChangeHysteresis') !NRGsim added detailed algo 2013-2016
   NumVTCMat=GetNumObjectsFound('MaterialProperty:VariableThermalConductivity')
   NumHAMTMat1=GetNumObjectsFound('MaterialProperty:HeatAndMoistureTransfer:Settings')
   NumHAMTMat2=GetNumObjectsFound('MaterialProperty:HeatAndMoistureTransfer:SorptionIsotherm')
