@@ -89,7 +89,7 @@ TYPE, PUBLIC ::  ConstructionDataFD
 END TYPE ConstructionDataFD
 
 
-TYPE, PUBLIC :: SurfaceDataFD ! Finite Diff
+TYPE, PUBLIC :: SurfaceDataFD
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: T             !
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: TOld          !
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: TT
@@ -109,7 +109,7 @@ TYPE, PUBLIC :: SurfaceDataFD ! Finite Diff
   INTEGER                                 :: GSloopCounter = 0 ! count of inner loop iterations
   INTEGER                                 :: GSloopErrorCount = 0 ! recurring error counter
   REAL(r64)                               :: MaxNodeDelTemp = 0.0d0 ! largest change in node temps after calc
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111 VE START
+!VE START
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: TempLastStep 
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: Enthreport
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: EnthLastStep 
@@ -134,11 +134,11 @@ TYPE, PUBLIC :: SurfaceDataFD ! Finite Diff
   REAL(r64)         :: DeltaH    ! ??????????????????Sum of Freezing and Melting??????????????
   REAL(r64)         :: EnthalpyM ! Melting Enthalpy at a particular temperature
   REAL(r64)         :: EnthalpyF ! Freezing Enthalpy at a particular temperature   
-!!!!!!!!!!!!!!!!!!!! VE END
+!VE END
 END TYPE SurfaceDataFD
 
 TYPE MaterialDataFD
-  REAL(r64) :: tk1          = 0.0d0 ! Temperature coefficient for thermal conductivity
+  REAL(r64) :: tk1          =0.0d0  ! Temperature coefficient for thermal conductivity
   INTEGER   :: numTempEnth  = 0     ! number of Temperature/Enthalpy pairs
   INTEGER   :: numTempCond  = 0     ! number of Temperature/Conductivity pairs
   REAL(r64), ALLOCATABLE, DIMENSION(:,:)  :: TempEnth  ! Temperature enthalpy Function Pairs,
@@ -148,11 +148,11 @@ TYPE MaterialDataFD
                                                        ! TempCond(1,1)= first Temp, Tempcond(1,2) = First conductivity,
                                                        ! TempEnth(2,1) = secomd Temp, etc.
 END TYPE
-
-!!!!!!!!!!!!!!!!111! MODULE VARIABLE DECLARATIONS:
+          ! MODULE VARIABLE DECLARATIONS:
 TYPE (ConstructionDataFD), PUBLIC, ALLOCATABLE, DIMENSION(:) :: ConstructFD
 TYPE (SurfaceDataFD), PUBLIC,   ALLOCATABLE, DIMENSION(:) :: SurfaceFD
 TYPE (MaterialDataFD), ALLOCATABLE, DIMENSION(:) :: MaterialFD
+
 !REAL(r64) :: TFDout   =0.0d0
 !REAL(r64) :: TFDin    =0.0d0
 !REAL(r64) :: rhovFDout=0.0d0
@@ -163,34 +163,39 @@ TYPE (MaterialDataFD), ALLOCATABLE, DIMENSION(:) :: MaterialFD
 !REAL(r64) :: RHIn     =0.0d0
 REAL(r64), ALLOCATABLE, DIMENSION(:) :: SigmaR            ! Total Resistance of construction layers
 REAL(r64), ALLOCATABLE, DIMENSION(:) :: SigmaC            ! Total Capacitance of construction layers
+
 !REAL(r64), ALLOCATABLE, DIMENSION(:) :: WSurfIn           !Humidity Ratio of the inside surface for reporting
 !REAL(r64), ALLOCATABLE, DIMENSION(:) :: QMassInFlux       !MassFlux on Surface for reporting
 !REAL(r64), ALLOCATABLE, DIMENSION(:) :: QMassOutFlux      !MassFlux on Surface for reporting
 REAL(r64), ALLOCATABLE, DIMENSION(:) :: QHeatInFlux       !HeatFlux on Surface for reporting
 REAL(r64), ALLOCATABLE, DIMENSION(:) :: QHeatOutFlux      !HeatFlux on Surface for reporting
 REAL(r64), ALLOCATABLE, DIMENSION(:) :: QFluxZoneToInSurf !sum of Heat flows at the surface to air interface,
-!!!!!!!!!!!!!!!!!!!!! zone-side boundary conditions W/m2 before CR 8280 was not reported, but was calculated.
+!zone-side boundary conditions W/m2 before CR 8280 was not reported, but was calculated.
 !REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QFluxOutsideToOutSurf !sum of Heat flows at the surface to air interface, Out-side boundary conditions W/m2
 !                                                           ! before CR 8280 was
 !REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QFluxInArrivSurfCond !conduction between surface node and first node into the surface (sensible)
 !                                                           ! before CR 8280 was -- Qdryin    !HeatFlux on Surface for reporting for Sensible only
 !REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QFluxOutArrivSurfCond  !HeatFlux on Surface for reporting for Sensible only
 !                                                                 ! before CR 8280 -- Qdryout         !HeatFlux on Surface for reporting for Sensible only
+
+
 INTEGER   :: CondFDSchemeType = FullyImplicitFirstOrder   ! solution scheme for CondFD - default
 REAL(r64) :: SpaceDescritConstant      = 3.d0             ! spatial descritization constant,
 REAL(r64) :: MinTempLimit              = -100.d0          ! lower limit check, degree C
 REAL(r64) :: MaxTempLimit              =  100.d0          ! upper limit check, degree C
 !feb2012 INTEGER   :: MaxGSiter         = 200             ! maximum number of Gauss Seidel iterations
 INTEGER   :: MaxGSiter                 = 30               ! maximum number of Gauss Seidel iterations
-REAL(r64) :: fracTimeStepZone_Hour     = 0.0d0
-LOGICAL   :: GetHBFiniteDiffInputFlag  = .true.
-INTEGER   :: WarmupSurfTemp            = 0
+REAL(r64) :: fracTimeStepZone_Hour=0.0d0
+LOGICAL   :: GetHBFiniteDiffInputFlag=.true.
+INTEGER :: WarmupSurfTemp=0
           ! Subroutine Specifications for the Heat Balance Module
           ! Driver Routines
 PUBLIC  ManageHeatBalFiniteDiff
+
           ! Initialization routines for module
 PUBLIC  InitHeatBalFiniteDiff
 PRIVATE GetCondFDInput
+
           ! Algorithms for the module
 PRIVATE CalcHeatBalFiniteDiff
 PRIVATE ExteriorBCEqns
@@ -200,8 +205,8 @@ PRIVATE InteriorNodeEqns
 PRIVATE IntInterfaceNodeEqns
 !VE START
 PRIVATE SpecEnthalpy 
-REAL(r64) :: TempTlowPCM               = 0.0d0    !temperature at which phase change starts
-REAL(r64) :: TempThighPCM              = 0.0d0    !temperature at which phase change ends
+REAL(r64) :: TempTlowPCM= 0.0d0    !temperature at which phase change starts
+REAL(r64) :: TempThighPCM= 0.0d0    !temperature at which phase change ends
 REAL(r64) :: SpecHeatSolidPCM                     !specific heat of PCM in solid state
 REAL(r64) :: SpecHeatLiquidPCM                    !specific heat of PCM in liquid state
 REAL(r64) :: Tau1 
@@ -213,13 +218,14 @@ REAL(r64) :: Tau2F
 REAL(r64) :: TcF 
 REAL(r64) :: Tc
 REAL(r64) :: TcOld 
-INTEGER   :: HysteresisFlag             = 1       ! 1 Dual curve Hysteresis model                     
+INTEGER   :: HysteresisFlag= 1       ! 1 Dual curve Hysteresis model                     
 !VE END 
           ! Reporting routines for module
 PRIVATE ReportFiniteDiffInits
 
           ! Update Data Routine
 PUBLIC  UpdateMoistureBalanceFD
+
 
 CONTAINS
 
@@ -260,6 +266,7 @@ SUBROUTINE ManageHeatBalFiniteDiff(SurfNum,TempSurfInTmp,TempSurfOutTmp)
           ! na
 
           ! SUBROUTINE LOCAL VARIABLE DECLARATIONS:
+
 
           ! FLOW:
 
@@ -324,13 +331,11 @@ SUBROUTINE GetCondFDInput
   INTEGER :: IOStat                             ! IO Status when calling get input subroutine
   CHARACTER(len=MaxNameLength),DIMENSION(3) &
           :: MaterialNames                      ! Number of Material Alpha names defined
-  CHARACTER(len=MaxNameLength),DIMENSION(3) & 
-          :: ConstructionName                   ! Name of Construction with CondFDsimplified
+  CHARACTER(len=MaxNameLength),DIMENSION(3)  :: ConstructionName ! Name of Construction with CondFDsimplified
   INTEGER :: MaterNum                           ! Counter to keep track of the material number
   INTEGER :: MaterialNumAlpha                   ! Number of material alpha names being passed
   INTEGER :: MaterialNumProp                    ! Number of material properties being passed
-  REAL(r64), DIMENSION(40) &
-          :: MaterialProps                      !Temporary array to transfer material properties
+  REAL(r64), DIMENSION(40) :: MaterialProps !Temporary array to transfer material properties
   LOGICAL :: ErrorsFound = .false.              ! If errors detected in input
 !  INTEGER :: CondFDMat                          ! Number of variable property CondFD materials in input
   INTEGER :: ConstructNumber                    ! Cconstruction with CondHBsimple to be overridden with CondHBdetailed
@@ -353,7 +358,7 @@ SUBROUTINE GetCondFDInput
   CHARACTER(len=MaxNameLength), DIMENSION(4) :: AlphaNameP
   INTEGER                                    :: NumAlphaP 
   INTEGER                                    :: NumObjectsP
-
+!VE END
   ! user settings for numerical parameters
   cCurrentModuleObject = 'HeatBalanceSettings:ConductionFiniteDifference'
 
@@ -527,25 +532,13 @@ CondFDMat=GetNumObjectsFound('MaterialProperty:PhaseChangeHysteresis')
           Material(MaterNum)%CpSolid    =     MaterialProps(8)    ! Specific Heat of PCM in Solid State
           Material(MaterNum)%Tau2Prime  =     MaterialProps(9)    ! High Temperature Difference of freezing curve 
           Material(MaterNum)%Tf         =     MaterialProps(10)   ! Peak Freezing Temperature 
-          Material(MaterNum)%Tau1Prime  =     MaterialProps(11)   ! Low Temperature Difference of freezing curve 
-
-!VE-2016--CC Is this necessary?  JDC not likely for the HysteresisFlag=1 var and also not a great reason fot the warning so commented off  
-!		  IF(HysteresisFlag==1) THEN
-!              IF(MaterialProps(5) == MaterialProps(10)) THEN
-!                CALL ShowSevereError(TRIM(cCurrentModuleObject)//  &
-!                ': Peak Freezing Temperature equal to Peak Melting Temperature, material='//  &
-!                TRIM(Material(MaterNum)%Name)//', must have different values for Hysteresis.')
-!                ErrorsFound=.true.
-!              END IF
-!          END IF
-          
+          Material(MaterNum)%Tau1Prime  =     MaterialProps(11)   ! Low Temperature Difference of freezing curve           
         END DO
     END IF
-!******************************************************************************************************************************
+!VE- CondFDVariableProperties = .TRUE.
 !VE END 
 !   Get CondFD Variable Thermal Conductivity Input
 
-!VE-2016--CC WTF JDC Not SURE I guess CondFDVariableProperties = .TRUE.
   cCurrentModuleObject='MaterialProperty:VariableThermalConductivity'    ! Variable Thermal Conductivity Info next
   IF ( vcMat .NE. 0 ) Then   !  variable k info
 !    CondFDVariableProperties = .TRUE.
@@ -772,7 +765,7 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
           ! USE STATEMENTS:
   USE General,         ONLY : TrimSigDigits, RoundSigDigits
   USE DataSurfaces,    ONLY : HeatTransferModel_CondFD
-  USE DataHeatBalance, ONLY : HighDiffusivityThreshold, ThinMaterialLayerThreshold
+  USE DataHeatBalance, Only: HighDiffusivityThreshold, ThinMaterialLayerThreshold
 
   IMPLICIT NONE ! Enforce explicit typing of all variables in this routine
 
@@ -839,13 +832,17 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
 !  ALLOCATE(QFluxOutArrivSurfCond(TotSurfaces))
 !  ALLOCATE(OpaqSurfInsFaceConductionFlux(TotSurfaces))
 !  ALLOCATE(OpaqSurfOutsideFaceConductionFlux(TotSurfaces))
+! VE START
   ALLOCATE(QFluxZoneToInSurf(TotSurfaces))
+! VE END
 !  ALLOCATE(QFluxOutsideToOutSurf(TotSurfaces))
 
  ! And then initialize
   QHeatInFlux  = 0.d0
   QHeatOutFlux  = 0.d0
+! VE START
   QFluxZoneToInSurf  = 0.d0
+! VE END
   !QFluxOutsideToOutSurf  = 0.d0
   !QFluxInArrivSurfCond  = 0.d0
   !QFluxOutArrivSurfCond  = 0.d0
@@ -880,6 +877,7 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
       ! Node Number of the Interface node following each layer
 !    ALLOCATE(ConstructFD(ConstrNum)%InterfaceNodeNums(Construct(ConstrNum)%TotLayers))
 
+
     TotNodes = 0
     SigmaR(ConstrNum) =0.0d0
     SigmaC(ConstrNum) =0.0d0
@@ -900,6 +898,7 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
           ! now there are special equations for R-only layers.
 
       CurrentLayer = Construct(ConstrNum)%LayerPoint(Layer)
+
 
       ConstructFD(ConstrNum)%Name(Layer) = Material(CurrentLayer)%Name
       ConstructFD(ConstrNum)%Thickness(Layer) = Material(CurrentLayer)%Thickness
@@ -965,7 +964,7 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
 !          Material(CurrentLayer)%Density = 0.0001d0
 !          Material(currentLayer)%Thickness = 0.1d0  !  arbitrary thickness for R layer
 !          Material(currentLayer)%Conductivity= &
-!          Material(currentLayer)%Thickness/Material(CurrentLayer)%Resistance
+!    -      Material(currentLayer)%Thickness/Material(CurrentLayer)%Resistance
 !          kt = Material(CurrentLayer)%Conductivity
 !          ConstructFD(ConstrNum)%Thickness(Layer) = Material(CurrentLayer)%Thickness
 !
@@ -1044,8 +1043,11 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
       ConstructFD(ConstrNum)%NodeNumPoint(Layer) = Ipts1   !  number of full size nodes
     END DO   !  end of layer loop.
 
+
     ConstructFD(ConstrNum)%TotNodes = TotNodes
     ConstructFD(ConstrNum)%DeltaTime = Delt
+
+
 
   END DO            ! End of Construction Loop.  TotNodes in each construction now set
 
@@ -1181,6 +1183,8 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
     CALL SetupOutputVariable('CondFD Inner Solver Loop Iteration Count [ ]', SurfaceFD(SurfNum)%GSloopCounter, &
                              'Zone','Sum',Surface(SurfNum)%Name)
 
+
+
     TotNodes = ConstructFD(Surface(SurfNum)%Construction)%TotNodes  ! Full size nodes, start with outside face.
     DO Lay = 1,TotNodes +1  ! include inside face node
       CALL SetupOutputVariable('CondFD Surface Temperature Node '//TRIM(TrimSigDigits(Lay))//' [C]',&
@@ -1194,11 +1198,19 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
 
 !VE-2016 DEV START   
 ! The final work on this code is to make some more useful output reporting. 
-! New Output set 1: averages the phase change state across the surface nodes. 
+! New Output set 1: averages the phase change state across the surface nodes and averaged for the zone and building.  
 ! Example of desired output varribles below:
 !      CALL SetupOutputVariable('CondFD Surface Phase Change State Surface  [ ]',&
-!           SurfaceFD(SurfNum)%PhaseChangeState(Lay),  &
+!           SurfaceFD(SurfNum)%PhaseChangeState,  &
+!          'Zone','State', Surface(SurfNum)%Name)
+!
+!      CALL SetupOutputVariable('CondFD Surface Phase Change State Zone  [ ]',&
+!           SurfaceFD(SurfNum)%PhaseChangeState,  &
 !          'Zone','State', Surface(SurfNum)%Name) 
+
+!      CALL SetupOutputVariable('CondFD Surface Phase Change State Building  [ ]',&
+!           SurfaceFD(SurfNum)%PhaseChangeState(Lay),  &
+!          'Building','State', Surface(SurfNum)%Name) 
 ! 
 ! New Output set 2: is to have the PCM Heat Absorbtion or Rejection Enthalpy value for the Facility, Zone, Surface level.
 !The PCM Heat Absorbtion Enthalpy [] value is the time series latent heat of fusion + liquid state sebsable heat.
@@ -1249,7 +1261,7 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
 ! 
 !           CALL SetupOutputVariable('Facility PCM Heat Rejection Enthalpy Energy [J]', EnthalpyF(I), &
 !                             'System','Average',Facility(i)%Name)
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
 !VE-2016 DEV END
     END DO
 
@@ -1522,9 +1534,6 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
         !PT delete one zero and decrese number of minimum iterations, from 3 (which actually requires 4 iterations) to 2.
 
       IF (Gsiter .gt. 2  .and.ABS(SUM(SurfaceFD(Surf)%TDT-SurfaceFD(Surf)%TDTLast)/SUM(SurfaceFD(Surf)%TDT)) < 0.00001d0 )  EXIT
-!Analysis of the parameter of convergence criteria for the Gauss-Seidel iterattive method suggests work could be done to make Energy Plus morea accurate, 
-!The E+ team suggests Nondimensionalization would be required for such a modification of cc.
-!See "report-Instituto de Energias Renovables.pdf"
       !SurfaceFD(Surf)%GSloopCounter = Gsiter  !PT moved out of GSloop so it can actually count all iterations
 
 !feb2012 the following could blow up when all the node temps sum to less than 1.0.  seems poorly formulated for temperature in C.
@@ -1870,6 +1879,7 @@ END Function
 SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthNew,TotNodes,HMovInsul, &
                             CpOld,PhaseChangeDeltaT,PhaseChangeTransition, Cp_node,PhaseChangeState,PhaseChangeStateold, PhaseChangeTransitionOld, &
                             PhaseChangeDeltaTOld,PhaseChangeStateoldold,Tr, Tc ,TcOld, EnthLastStep) 
+! VE END
 
           ! SUBROUTINE INFORMATION:
           !       AUTHOR         Richard Liesen
@@ -1911,7 +1921,7 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
   REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthNew    ! New Nodal enthalpy
   INTEGER, INTENT(IN)  :: TotNodes !  Total nodes in layer
   REAL(r64), INTENT(IN) :: HMovInsul  !  Conductance of movable(transparent) insulation.
-!!VE START
+!VE START
   REAL(r64),Dimension(:), Intent(In)    :: EnthLastStep      
   REAL(r64), Intent(InOut)    :: Tc
   REAL(r64), Intent(In)    :: TcOld
@@ -2926,8 +2936,9 @@ SUBROUTINE IntInterfaceNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld
   REAL(r64),DIMENSION(:), INTENT(InOut) :: TDT    !NEW NODE TEMPERATURES OF EACH HEAT TRANSFER SURF IN CONDFD.
   REAL(r64),DIMENSION(:), INTENT(InOut) :: RH    !RELATIVE HUMIDITY.
   REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthNew    ! New Nodal enthalpy
-!REAL(r64),DIMENSION(:), INTENT(In)    :: EnthOld    ! Old Nodal enthalpy V8 !JDC BugCheck Single Curve is "In", dual curve "InOut"
 !VE START 
+!REAL(r64),DIMENSION(:), INTENT(In)    :: EnthOld    ! Old Nodal enthalpy V8 !JDC BugCheck Single Curve is "In", dual curve "InOut"
+
   REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthOld    ! Old Nodal enthalpy VE !JDC BugCheck Single Curve is "In", dual curve "InOut"
   REAL(r64),Dimension(100)              :: EnthalpyF  
   REAL(r64),Dimension(100)              :: EnthalpyM 
@@ -3041,7 +3052,7 @@ SUBROUTINE IntInterfaceNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld
   ConstrNum=Surface(surf)%Construction
 
   MatLay = Construct(ConstrNum)%LayerPoint(Lay)
-  MatLay2 = Construct(ConstrNum)%LayerPoint(Lay+1)   
+  MatLay2 = Construct(ConstrNum)%LayerPoint(Lay+1) 
  !VE START   
 
     TcM = Material(MatLay)%Tm
@@ -4988,8 +4999,10 @@ END IF
 !feb2012             QSteamBaseboardSurfFD+QElecBaseboardSurfFD+hconvi*(-TDT(I) + Tia)
 
     !  Pass inside conduction Flux [W/m2] to DataHeatBalanceSurface array
-  OpaqSurfInsFaceConductionFlux(Surf)= QNetSurfInside
-QFluxZoneToInSurf(Surf) = QNetSurfInside
+!VE START HEAT FLUX OUTPUT
+OpaqSurfInsFaceConductionFlux(Surf)= QNetSurfInside
+!VE END
+!  QFluxZoneToInSurf(Surf) = QNetSurfInside
   OpaqSurfInsFaceConduction(Surf)=QNetSurfInside*Surface(Surf)%Area   !for reporting as in CTF, PT
 
 RETURN
