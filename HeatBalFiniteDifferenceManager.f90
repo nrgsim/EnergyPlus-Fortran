@@ -5,8 +5,13 @@ MODULE HeatBalFiniteDiffManager
           ! MODULE INFORMATION:
           !       AUTHOR         Richard J. Liesen
           !       DATE WRITTEN   October 2003
-          !       RE-ENGINEERED  Curtis Pedersen, 2006, Changed to Implicit FD calc for conduction.
-          !                      and included enthalpy formulations for phase change materials
+          !       RE-ENGINEERED  Curtis Pedersen, 2006, Changed to Implicit FD calc for conduction,
+          !                      and included enthalpy formulations for phase change materials.       
+          !		 
+          !                     2016, Jeremiah D. Crossett and Chad Coates of NRGsim Inc. added Material Property Phase Change Hysteresis Model based on the work 
+          !                     of Ramprasad Chandrasekharan at Oklahoma State University.
+ 
+
           ! PURPOSE OF THIS MODULE:
           ! To encapsulate the data and algorithms required to
           ! manage the fiite difference heat balance simulation on the building.
@@ -19,8 +24,11 @@ MODULE HeatBalFiniteDiffManager
           !  C. O. Pedersen, Enthalpy Formulation of conduction heat transfer problems
           !    involving latent heat, Simulation, Vol 18, No. 2, February 1972
 
-          ! OTHER NOTES:
-          !
+          ! OTHER NOTES: 
+		  ! 1)Begining line 1212 in the "!VE-2016 DEV" tag is under devolopment for new outputs.
+          ! 2) Known bug when useing this module a known problem is when useing this module where temperatures are diffrent with no PCM objects. 
+
+
           !
 
           ! USE STATEMENTS:
@@ -101,19 +109,44 @@ TYPE, PUBLIC :: SurfaceDataFD
   INTEGER                                 :: GSloopCounter = 0 ! count of inner loop iterations
   INTEGER                                 :: GSloopErrorCount = 0 ! recurring error counter
   REAL(r64)                               :: MaxNodeDelTemp = 0.0d0 ! largest change in node temps after calc
-
+!VE START
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: TempLastStep 
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: Enthreport
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: EnthLastStep 
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: CpOld         !Node Enthalpy at old time
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: CpOld1        !Node Enthalpy at old time
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: CpOld2        !Node Enthalpy at old time for multiple material layer
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: Cp_node       !Node Enthalpy at old time
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: Cp1_node      !Node Enthalpy at old time for multiple material layer
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: Cp2_node      !Node Enthalpy at old time for multiple material layer 
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: PhaseChangeDeltaT      !Flag which determines which curve to use
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: PhaseChangeDeltaTOld   !Flag which determines which curve to use based on PhaseChangeDeltaT
+                                                                    !(it stores the value of previous timesteps PhaseChangeDeltaT)  
+                                                                    !(it stores the value of previous timesteps PhaseChangeDeltaT)
+  INTEGER,      ALLOCATABLE, DIMENSION(:) :: PhaseChangeTransition
+  INTEGER,      ALLOCATABLE, DIMENSION(:) :: PhaseChangeTransitionOld
+  Integer,      ALLOCATABLE, DIMENSION(:) :: PhaseChangeState       !-2=liquid, -1=Melting, 0=Transition, 1=Freezing, 2=Crystallized                      
+  Integer,      ALLOCATABLE, DIMENSION(:) :: PhaseChangeStateold    !-2=liquid, -1=Melting, 0=Transition, 1=Freezing, 2=Crystallized ! of previous timestep
+  Integer,      ALLOCATABLE, DIMENSION(:) :: PhaseChangeStateoldold !-2=liquid, -1=Melting, 0=Transition, 1=Freezing, 2=Crystallized ! of timestep previous to previous timestep
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: PhaseChangeTemperatureReverse !Temperature at which the phase change curve reverses its direction  
+  REAL(r64)         :: DeltaHM   ! Latent heat of Fusion Melting
+  REAL(r64)         :: DeltaHF   ! Latent heat of Solidification Freezing
+  REAL(r64)         :: DeltaH    ! ??????????????????Sum of Freezing and Melting??????????????
+  REAL(r64)         :: EnthalpyM ! Melting Enthalpy at a particular temperature
+  REAL(r64)         :: EnthalpyF ! Freezing Enthalpy at a particular temperature   
+!VE END
 END TYPE SurfaceDataFD
 
 TYPE MaterialDataFD
   REAL(r64) :: tk1          =0.0d0  ! Temperature coefficient for thermal conductivity
-  INTEGER   :: numTempEnth  = 0   ! number of Temperature/Enthalpy pairs
-  INTEGER   :: numTempCond  = 0   ! number of Temperature/Conductivity pairs
-  REAL(r64), ALLOCATABLE, DIMENSION(:,:)  :: TempEnth  !  Temperature enthalpy Function Pairs,
-                                                       !  TempEnth(1,1)= first Temp, TempEnth(1,2) = First Enthalpy,
-                                                       !  TempEnth(2,1) = secomd Temp, etc.
-  REAL(r64), ALLOCATABLE, DIMENSION(:,:)  :: TempCond  !  Temperature thermal conductivity Function Pairs,
-                                                       !  TempCond(1,1)= first Temp, Tempcond(1,2) = First conductivity,
-                                                       !  TempEnth(2,1) = secomd Temp, etc.
+  INTEGER   :: numTempEnth  = 0     ! number of Temperature/Enthalpy pairs
+  INTEGER   :: numTempCond  = 0     ! number of Temperature/Conductivity pairs
+  REAL(r64), ALLOCATABLE, DIMENSION(:,:)  :: TempEnth  ! Temperature enthalpy Function Pairs,
+                                                       ! TempEnth(1,1)= first Temp, TempEnth(1,2) = First Enthalpy,
+                                                       ! TempEnth(2,1) = secomd Temp, etc.
+  REAL(r64), ALLOCATABLE, DIMENSION(:,:)  :: TempCond  ! Temperature thermal conductivity Function Pairs,
+                                                       ! TempCond(1,1)= first Temp, Tempcond(1,2) = First conductivity,
+                                                       ! TempEnth(2,1) = secomd Temp, etc.
 END TYPE
           ! MODULE VARIABLE DECLARATIONS:
 TYPE (ConstructionDataFD), PUBLIC, ALLOCATABLE, DIMENSION(:) :: ConstructFD
@@ -128,16 +161,16 @@ TYPE (MaterialDataFD), ALLOCATABLE, DIMENSION(:) :: MaterialFD
 !REAL(r64) :: Tdryin   =0.0d0
 !REAL(r64) :: RHOut    =0.0d0
 !REAL(r64) :: RHIn     =0.0d0
-REAL(r64), ALLOCATABLE, DIMENSION(:) :: SigmaR      !  Total Resistance of construction layers
-REAL(r64), ALLOCATABLE, DIMENSION(:) :: SigmaC      !  Total Capacitance of construction layers
+REAL(r64), ALLOCATABLE, DIMENSION(:) :: SigmaR            ! Total Resistance of construction layers
+REAL(r64), ALLOCATABLE, DIMENSION(:) :: SigmaC            ! Total Capacitance of construction layers
 
-!REAL(r64), ALLOCATABLE, DIMENSION(:)   :: WSurfIn         !Humidity Ratio of the inside surface for reporting
-!REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QMassInFlux     !MassFlux on Surface for reporting
-!REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QMassOutFlux    !MassFlux on Surface for reporting
-REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QHeatInFlux     !HeatFlux on Surface for reporting
-REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QHeatOutFlux    !HeatFlux on Surface for reporting
-!REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QFluxZoneToInSurf !sum of Heat flows at the surface to air interface,
-!                                 ! zone-side boundary conditions W/m2 before CR 8280 was not reported, but was calculated.
+!REAL(r64), ALLOCATABLE, DIMENSION(:) :: WSurfIn           !Humidity Ratio of the inside surface for reporting
+!REAL(r64), ALLOCATABLE, DIMENSION(:) :: QMassInFlux       !MassFlux on Surface for reporting
+!REAL(r64), ALLOCATABLE, DIMENSION(:) :: QMassOutFlux      !MassFlux on Surface for reporting
+REAL(r64), ALLOCATABLE, DIMENSION(:) :: QHeatInFlux       !HeatFlux on Surface for reporting
+REAL(r64), ALLOCATABLE, DIMENSION(:) :: QHeatOutFlux      !HeatFlux on Surface for reporting
+REAL(r64), ALLOCATABLE, DIMENSION(:) :: QFluxZoneToInSurf !sum of Heat flows at the surface to air interface,
+!zone-side boundary conditions W/m2 before CR 8280 was not reported, but was calculated.
 !REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QFluxOutsideToOutSurf !sum of Heat flows at the surface to air interface, Out-side boundary conditions W/m2
 !                                                           ! before CR 8280 was
 !REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QFluxInArrivSurfCond !conduction between surface node and first node into the surface (sensible)
@@ -146,12 +179,12 @@ REAL(r64), ALLOCATABLE, DIMENSION(:)   :: QHeatOutFlux    !HeatFlux on Surface f
 !                                                                 ! before CR 8280 -- Qdryout         !HeatFlux on Surface for reporting for Sensible only
 
 
-INTEGER   :: CondFDSchemeType = FullyImplicitFirstOrder  ! solution scheme for CondFD - default
-REAL(r64) :: SpaceDescritConstant = 3.d0 ! spatial descritization constant,
-REAL(r64) :: MinTempLimit = -100.d0 ! lower limit check, degree C
-REAL(r64) :: MaxTempLimit =  100.d0 ! upper limit check, degree C
-!feb2012 INTEGER   :: MaxGSiter = 200  ! maximum number of Gauss Seidel iterations
-INTEGER   :: MaxGSiter = 30  ! maximum number of Gauss Seidel iterations
+INTEGER   :: CondFDSchemeType = FullyImplicitFirstOrder   ! solution scheme for CondFD - default
+REAL(r64) :: SpaceDescritConstant      = 3.d0             ! spatial descritization constant,
+REAL(r64) :: MinTempLimit              = -100.d0          ! lower limit check, degree C
+REAL(r64) :: MaxTempLimit              =  100.d0          ! upper limit check, degree C
+!feb2012 INTEGER   :: MaxGSiter         = 200             ! maximum number of Gauss Seidel iterations
+INTEGER   :: MaxGSiter                 = 30               ! maximum number of Gauss Seidel iterations
 REAL(r64) :: fracTimeStepZone_Hour=0.0d0
 LOGICAL   :: GetHBFiniteDiffInputFlag=.true.
 INTEGER :: WarmupSurfTemp=0
@@ -170,8 +203,23 @@ PRIVATE InteriorBCEqns
 PRIVATE terpld
 PRIVATE InteriorNodeEqns
 PRIVATE IntInterfaceNodeEqns
-
-
+!VE START
+PRIVATE SpecEnthalpy 
+REAL(r64) :: TempTlowPCM= 0.0d0    !temperature at which phase change starts
+REAL(r64) :: TempThighPCM= 0.0d0    !temperature at which phase change ends
+REAL(r64) :: SpecHeatSolidPCM                     !specific heat of PCM in solid state
+REAL(r64) :: SpecHeatLiquidPCM                    !specific heat of PCM in liquid state
+REAL(r64) :: Tau1 
+REAL(r64) :: Tau2 
+REAL(r64) :: DeltaH 
+REAL(r64) :: TcM 
+REAL(r64) :: Tau1F 
+REAL(r64) :: Tau2F 
+REAL(r64) :: TcF 
+REAL(r64) :: Tc
+REAL(r64) :: TcOld 
+INTEGER   :: HysteresisFlag= 1       ! 1 Dual curve Hysteresis model                     
+!VE END 
           ! Reporting routines for module
 PRIVATE ReportFiniteDiffInits
 
@@ -210,7 +258,7 @@ SUBROUTINE ManageHeatBalFiniteDiff(SurfNum,TempSurfInTmp,TempSurfOutTmp)
           ! na
 
           ! INTERFACE BLOCK SPECIFICATIONS
-  Integer, Intent(In) :: SurfNum
+  Integer,   Intent(In)    :: SurfNum
   REAL(r64), Intent(InOut) :: TempSurfInTmp       !INSIDE SURFACE TEMPERATURE OF EACH HEAT TRANSFER SURF.
   REAL(r64), Intent(InOut) :: TempSurfOutTmp      !Outside Surface Temperature of each Heat Transfer Surface
 
@@ -269,7 +317,7 @@ SUBROUTINE GetCondFDInput
   IMPLICIT NONE    ! Enforce explicit typing of all variables in this routine
 
           ! SUBROUTINE ARGUMENT DEFINITIONS:
-            ! na
+          ! na
           ! SUBROUTINE PARAMETER DEFINITIONS:
           ! na
 
@@ -280,17 +328,17 @@ SUBROUTINE GetCondFDInput
           ! na
 
           ! SUBROUTINE LOCAL VARIABLE DECLARATIONS:
-  INTEGER :: IOStat           ! IO Status when calling get input subroutine
+  INTEGER :: IOStat                             ! IO Status when calling get input subroutine
   CHARACTER(len=MaxNameLength),DIMENSION(3) &
-          :: MaterialNames ! Number of Material Alpha names defined
+          :: MaterialNames                      ! Number of Material Alpha names defined
   CHARACTER(len=MaxNameLength),DIMENSION(3)  :: ConstructionName ! Name of Construction with CondFDsimplified
-  INTEGER :: MaterNum         ! Counter to keep track of the material number
-  INTEGER :: MaterialNumAlpha ! Number of material alpha names being passed
-  INTEGER :: MaterialNumProp  ! Number of material properties being passed
+  INTEGER :: MaterNum                           ! Counter to keep track of the material number
+  INTEGER :: MaterialNumAlpha                   ! Number of material alpha names being passed
+  INTEGER :: MaterialNumProp                    ! Number of material properties being passed
   REAL(r64), DIMENSION(40) :: MaterialProps !Temporary array to transfer material properties
-  LOGICAL :: ErrorsFound = .false. ! If errors detected in input
-!  INTEGER :: CondFDMat                ! Number of variable property CondFD materials in input
-  INTEGER :: ConstructNumber     ! Cconstruction with CondHBsimple to be overridden with CondHBdetailed
+  LOGICAL :: ErrorsFound = .false.              ! If errors detected in input
+!  INTEGER :: CondFDMat                          ! Number of variable property CondFD materials in input
+  INTEGER :: ConstructNumber                    ! Cconstruction with CondHBsimple to be overridden with CondHBdetailed
 
   INTEGER :: NumConstructionAlpha
   Integer :: Loop
@@ -303,6 +351,14 @@ SUBROUTINE GetCondFDInput
   INTEGER :: inegptr
   LOGICAL :: nonInc
 
+!VE START
+  INTEGER :: CondFDMat    
+  REAL(r64)  :: kt1
+  REAL(r64), DIMENSION(10) :: PCMProps !Temporary array to transfer PCM properties 
+  CHARACTER(len=MaxNameLength), DIMENSION(4) :: AlphaNameP
+  INTEGER                                    :: NumAlphaP 
+  INTEGER                                    :: NumObjectsP
+!VE END
   ! user settings for numerical parameters
   cCurrentModuleObject = 'HeatBalanceSettings:ConductionFiniteDifference'
 
@@ -343,7 +399,9 @@ SUBROUTINE GetCondFDInput
 
   pcMat=GetNumObjectsFound('MaterialProperty:PhaseChange')
   vcMat=GetNumObjectsFound('MaterialProperty:VariableThermalConductivity')
-
+!VE START
+CondFDMat=GetNumObjectsFound('MaterialProperty:PhaseChangeHysteresis')
+!VE END    
   ALLOCATE(MaterialFD(TotMaterials))
 
   ! Load the additional CondFD Material properties
@@ -435,6 +493,50 @@ SUBROUTINE GetCondFDInput
       ENDIF
     ENDDO
   END IF
+!VE START
+!****************************************************************************************************************************** 
+    cCurrentModuleObject='MaterialProperty:PhaseChangeHysteresis'    ! Phase Change Information First
+    CondFDMat=GetNumObjectsFound(TRIM(cCurrentModuleObject))
+    
+    IF ( CondFDMat .NE. 0 ) Then                      !  Get Dual Curve Phase Change info
+        DO Loop=1,CondFDMat
+
+            !Call Input Get routine to retrieve material data
+            CALL GetObjectItem(TRIM(cCurrentModuleObject),Loop,MaterialNames,MaterialNumAlpha, &
+                                MaterialProps,MaterialNumProp,IOSTAT,  &
+                            AlphaBlank=lAlphaFieldBlanks,NumBlank=lNumericFieldBlanks,  &
+                            AlphaFieldnames=cAlphaFieldNames,NumericFieldNames=cNumericFieldNames)
+        
+            MaterNum = FindItemInList(MaterialNames(1),Material%Name,TotMaterials)
+            IF (MaterNum == 0) THEN
+                CALL ShowSevereError(TRIM(cCurrentModuleObject)//': invalid '//TRIM(cAlphaFieldNames(1))//  &
+                     ' entered='//TRIM(MaterialNames(1))//', must match to a valid Material name.')
+                  ErrorsFound=.true.
+                CYCLE
+            ENDIF
+
+            IF (Material(MaterNum)%Group /= RegularMaterial) THEN
+              CALL ShowSevereError(TRIM(cCurrentModuleObject)//  &
+                 ': Reference Material is not appropriate type for CondFD properties, material='//  &
+                 TRIM(Material(MaterNum)%Name)//', must have regular properties (L,Cp,K,D)')
+              ErrorsFound=.true.
+            ENDIF
+            
+          Material(MaterNum)%tk1        =     MaterialProps(1)    ! Temperature coefficient for thermal conductivity      
+          Material(MaterNum)%DeltaHS    =     MaterialProps(2)    ! Latent Heat of Fusion 
+          Material(MaterNum)%CpLiquid   =     MaterialProps(3)    ! Specific Heat of PCM in Liquid State
+          Material(MaterNum)%Tau2       =     MaterialProps(4)    ! High Temperature Difference of melting curve 
+          Material(MaterNum)%Tm         =     MaterialProps(5)    ! Peak Melting Temperature PeakMeltTemp 
+          Material(MaterNum)%Tau1       =     MaterialProps(6)    ! Low Temperature Difference of melting curve  
+          Material(MaterNum)%DeltaHF    =     MaterialProps(7)    ! Latent Heat Of Solidification 
+          Material(MaterNum)%CpSolid    =     MaterialProps(8)    ! Specific Heat of PCM in Solid State
+          Material(MaterNum)%Tau2Prime  =     MaterialProps(9)    ! High Temperature Difference of freezing curve 
+          Material(MaterNum)%Tf         =     MaterialProps(10)   ! Peak Freezing Temperature 
+          Material(MaterNum)%Tau1Prime  =     MaterialProps(11)   ! Low Temperature Difference of freezing curve           
+        END DO
+    END IF
+!VE- CondFDVariableProperties = .TRUE.
+!VE END 
 !   Get CondFD Variable Thermal Conductivity Input
 
   cCurrentModuleObject='MaterialProperty:VariableThermalConductivity'    ! Variable Thermal Conductivity Info next
@@ -444,7 +546,7 @@ SUBROUTINE GetCondFDInput
 
       !Call Input Get routine to retrieve material data
       CALL GetObjectItem(cCurrentModuleObject,Loop,MaterialNames,MaterialNumAlpha, &
-                       MaterialProps,MaterialNumProp,IOSTAT,  &
+                   MaterialProps,MaterialNumProp,IOSTAT,  &
                    AlphaBlank=lAlphaFieldBlanks,NumBlank=lNumericFieldBlanks,  &
                    AlphaFieldnames=cAlphaFieldNames,NumericFieldNames=cNumericFieldNames)
 
@@ -661,8 +763,8 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
           ! na
 
           ! USE STATEMENTS:
-  USE General,      ONLY : TrimSigDigits, RoundSigDigits
-  USE DataSurfaces, ONLY : HeatTransferModel_CondFD
+  USE General,         ONLY : TrimSigDigits, RoundSigDigits
+  USE DataSurfaces,    ONLY : HeatTransferModel_CondFD
   USE DataHeatBalance, Only: HighDiffusivityThreshold, ThinMaterialLayerThreshold
 
   IMPLICIT NONE ! Enforce explicit typing of all variables in this routine
@@ -684,11 +786,11 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
   INTEGER :: SurfNum
   CHARACTER(len=MaxNameLength) :: LayChar
 
-  REAL(r64)             :: dxn        ! Intermediate calculation of nodal spacing. This is the full dx. There is
-                                                  ! a half dxn thick node at each surface. dxn is the "capacitor" spacing.
-  INTEGER                           :: ipts1      ! Intermediate calculation for number of full thickness nodes per layer. There
-                                                  ! are always two half nodes at the layer faces.
-  INTEGER :: Layer      ! Loop counter
+  REAL(r64) :: dxn              ! Intermediate calculation of nodal spacing. This is the full dx. There is
+                                ! a half dxn thick node at each surface. dxn is the "capacitor" spacing.
+  INTEGER :: ipts1              ! Intermediate calculation for number of full thickness nodes per layer. There
+                                ! are always two half nodes at the layer faces.
+  INTEGER :: Layer              ! Loop counter
   INTEGER :: OutwardMatLayerNum ! layer index, layer outward of the current layer
   INTEGER :: layerNode
   INTEGER :: Delt
@@ -714,7 +816,11 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
   LOGICAL :: errorsFound
   REAL(r64) :: DeltaTimestep      ! zone timestep in seconds, for local check of properties
   REAL(r64) :: ThicknessThreshold ! min thickness consistent with other thermal properties, for local check
-
+!VE START
+   REAL(r64) :: EnthInit
+   REAL(r64) :: TempInit
+   REAL(r64) :: RhoVInit
+!VE END 
   ALLOCATE(ConstructFD(TotConstructs))
   ALLOCATE(SigmaR(TotConstructs))
   ALLOCATE(SigmaC(TotConstructs))
@@ -726,19 +832,27 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
 !  ALLOCATE(QFluxOutArrivSurfCond(TotSurfaces))
 !  ALLOCATE(OpaqSurfInsFaceConductionFlux(TotSurfaces))
 !  ALLOCATE(OpaqSurfOutsideFaceConductionFlux(TotSurfaces))
-!  ALLOCATE(QFluxZoneToInSurf(TotSurfaces))
+! VE START
+  ALLOCATE(QFluxZoneToInSurf(TotSurfaces))
+! VE END
 !  ALLOCATE(QFluxOutsideToOutSurf(TotSurfaces))
 
  ! And then initialize
   QHeatInFlux  = 0.d0
   QHeatOutFlux  = 0.d0
-  !QFluxZoneToInSurf  = 0.d0
+! VE START
+  QFluxZoneToInSurf  = 0.d0
+! VE END
   !QFluxOutsideToOutSurf  = 0.d0
   !QFluxInArrivSurfCond  = 0.d0
   !QFluxOutArrivSurfCond  = 0.d0
   OpaqSurfInsFaceConductionFlux = 0.d0
   OpaqSurfOutsideFaceConductionFlux = 0.d0
-
+!VE START
+    TempInit = 20.0d0
+    RhovInit = 0.0115d0
+    EnthInit = 100.0d0
+!VE END 
   ! Setup Output Variables
 
   !  set a Delt that fits the zone time step and keeps it below 200s.
@@ -780,7 +894,7 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
           ! was chosen not because it is viewed to be correct, but rather for
           ! lack of any better criteria at this time.  The use of a Fourier
           ! number based criteria such as this is probably physically correct.
-          !  Change to implicit formulation still uses explicit stability, but
+          ! Change to implicit formulation still uses explicit stability, but
           ! now there are special equations for R-only layers.
 
       CurrentLayer = Construct(ConstrNum)%LayerPoint(Layer)
@@ -793,7 +907,7 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
 
       IF (Material(CurrentLayer)%ROnly  ) THEN  ! Rlayer
 
-        !  These values are only needed temporarily and to calculate flux,
+        ! These values are only needed temporarily and to calculate flux,
         !   Layer will be handled
         !  as a pure R in the temperature calc.
         ! assign other properties based on resistance
@@ -997,6 +1111,41 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
     ALLOCATE(SurfaceFD(Surf)%EnthOld(TotNodes + 1))
     ALLOCATE(SurfaceFD(Surf)%EnthNew(TotNodes + 1))
     ALLOCATE(SurfaceFD(Surf)%EnthLast(TotNodes + 1))
+!VE START
+   ALLOCATE(SurfaceFD(Surf)%TempLastStep(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%Enthreport(TotNodes + 1)) 
+   ALLOCATE(SurfaceFD(Surf)%EnthLastStep(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%CpOld(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%CpOld1(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%CpOld2(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%Cp_node(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%Cp1_node(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%Cp2_node(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%PhaseChangeDeltaT(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%PhaseChangeDeltaTOld(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%PhaseChangeTransition(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%PhaseChangeTransitionOld(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%PhaseChangeState(TotNodes + 1))  
+   ALLOCATE(SurfaceFD(Surf)%PhaseChangeStateold(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%PhaseChangeStateoldold(TotNodes + 1))
+   ALLOCATE(SurfaceFD(Surf)%PhaseChangeTemperatureReverse(TotNodes + 1)) 
+   SurfaceFD(Surf)%Enthreport       = EnthInit 
+   SurfaceFD(Surf)%EnthLastStep     = EnthInit
+   SurfaceFD(Surf)%CpOld      = 1200 ! SpecHeatSolidPCM
+   SurfaceFD(Surf)%CpOld1     = 1200 ! SpecHeatSolidPCM
+   SurfaceFD(Surf)%CpOld2     = 1200 ! SpecHeatSolidPCM
+   SurfaceFD(Surf)%Cp_node    = 1200 ! SpecHeatSolidPCM
+   SurfaceFD(Surf)%Cp1_node   = 1200 ! SpecHeatSolidPCM
+   SurfaceFD(Surf)%Cp2_node   = 1200 ! SpecHeatSolidPCM
+   SurfaceFD(Surf)%PhaseChangeDeltaT    = 1
+   SurfaceFD(Surf)%PhaseChangeDeltaTOld = 1
+   SurfaceFD(Surf)%PhaseChangeTransition = 0
+   SurfaceFD(Surf)%PhaseChangeTransition = 0 
+   SurfaceFD(Surf)%PhaseChangeState = 2
+   SurfaceFD(Surf)%PhaseChangeStateold = 2
+   SurfaceFD(Surf)%PhaseChangeStateoldold = 2
+   SurfaceFD(Surf)% PhaseChangeTemperatureReverse = 50
+!VE END 
 
 
     !Initialize the allocated arrays.
@@ -1023,17 +1172,14 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
     IF (.not. Surface(SurfNum)%HeatTransSurf) CYCLE
     IF (Surface(SurfNum)%Class == SurfaceClass_Window) CYCLE
     IF (Surface(SurfNum)%HeatTransferAlgorithm /= HeatTransferModel_CondFD) CYCLE
- !   If(SolutionAlgo == UseCondFD .or. SolutionAlgo == UseCondFDSimple)Then
-!
-!    CALL SetupOutputVariable('CondFD Outside Surface Heat Flux [W/m2]',   QFluxOutArrivSurfCond(SurfNum), &
-!                             'Zone','State',TRIM(Surface(SurfNum)%Name))
-!    CALL SetupOutputVariable('CondFD Inside Surface Heat Flux [W/m2]',    QFluxInArrivSurfCond(SurfNum), &
-!                             'Zone','State',TRIM(Surface(SurfNum)%Name))
-!    CALL SetupOutputVariable('CondFD Outside Heat Flux to Surface [W/m2]',QFluxOutsideToOutSurf(SurfNum), &
-!                             'Zone','State',TRIM(Surface(SurfNum)%Name))
-!    CALL SetupOutputVariable('CondFD Inside Heat Flux to Surface [W/m2]', QFluxZoneToInSurf(SurfNum), &
-!                             'Zone','State',TRIM(Surface(SurfNum)%Name))
-
+!VE START
+    CALL SetupOutputVariable('CondFD Surface Heat Flux [W/m2]', QFluxZoneToInSurf(SurfNum), &
+                             'Zone','State',TRIM(Surface(SurfNum)%Name)) !This is a renamed copy of CondFD Inside Heat Flux to Surface. 
+							 !This output is more useful than the "Surface Average Face Conduction Heat Transfer Rate Per Area that replaced it,
+							 !due to it only reporting on CondFD surfaces.  
+!Som Shrestha "Compare the heat flux through the walls to the conditioned space using the output variable “CondFD Inside Heat Flux to Surface”.
+! The reporting variable “CondFD Inside Surface Heat Flux” has an issue therefore the new variable was added to resolve it." 
+!VE END
     CALL SetupOutputVariable('CondFD Inner Solver Loop Iteration Count [ ]', SurfaceFD(SurfNum)%GSloopCounter, &
                              'Zone','Sum',Surface(SurfNum)%Name)
 
@@ -1044,6 +1190,79 @@ SUBROUTINE InitialInitHeatBalFiniteDiff
       CALL SetupOutputVariable('CondFD Surface Temperature Node '//TRIM(TrimSigDigits(Lay))//' [C]',&
            SurfaceFD(SurfNum)%TDreport(Lay),  &
           'Zone','State', Surface(SurfNum)%Name)
+!VE START        		       
+      CALL SetupOutputVariable('CondFD Surface Phase Change State Node '//TRIM(TrimSigDigits(Lay))//' [ ]',&
+           SurfaceFD(SurfNum)%PhaseChangeState(Lay),  &
+          'Zone','State', Surface(SurfNum)%Name)  
+!VE END
+
+!VE-2016 DEV START   
+! The final work on this code is to make some more useful output reporting. 
+! New Output set 1: averages the phase change state across the surface nodes and averaged for the zone and building.  
+! Example of desired output varribles below:
+!      CALL SetupOutputVariable('CondFD Surface Phase Change State Surface  [ ]',&
+!           SurfaceFD(SurfNum)%PhaseChangeState,  &
+!          'Zone','State', Surface(SurfNum)%Name)
+!
+!      CALL SetupOutputVariable('CondFD Surface Phase Change State Zone  [ ]',&
+!           SurfaceFD(SurfNum)%PhaseChangeState,  &
+!          'Zone','State', Surface(SurfNum)%Name) 
+
+!      CALL SetupOutputVariable('CondFD Surface Phase Change State Building  [ ]',&
+!           SurfaceFD(SurfNum)%PhaseChangeState(Lay),  &
+!          'Building','State', Surface(SurfNum)%Name) 
+! 
+! New Output set 2: is to have the PCM Heat Absorbtion or Rejection Enthalpy value for the Facility, Zone, Surface level.
+!The PCM Heat Absorbtion Enthalpy [] value is the time series latent heat of fusion + liquid state sebsable heat.
+!The PCM Heat Rejection Enthalpy []  value is the time series latent heat of solidificaiton + solid state sebsable heat.
+!
+!Internal varribles that should hold the correct value during routines						 
+! REAL(r64)         :: EnthalpyM ! Melting Enthalpy at a particular temperature
+! REAL(r64)         :: EnthalpyF ! Freezing Enthalpy at a particular temperature   
+! 
+! Example of desired output varribles below:
+!
+! Surface Thermal Load Rate outputs:   
+!            CALL SetupOutputVariable('Surface PCM Heat Absorption Enthalpy Rate [W]', EnthalpyM(I), &
+!                                'System','Average',Surface(ZoneNum)%Name)
+!
+!             CALL SetupOutputVariable('Surface PCM Heat Rejection Enthalpy Rate [W]', EnthalpyF(I), &
+!                                'System','Average',Surface(i)%Name)
+!
+! Zone Thermal Load Rate outputs:   
+!            CALL SetupOutputVariable('Zone PCM Heat Absorption Enthalpy Rate [W]', EnthalpyM(I), &
+!                                'System','Average',Zone(ZoneNum)%Name)
+!
+!             CALL SetupOutputVariable('Zone PCM Heat Rejection Enthalpy Rate [W]', EnthalpyF(I), &
+!                                'System','Average',Zone(i)%Name)
+! Facility Thermal Load Rate outputs:
+!            CALL SetupOutputVariable('Facility PCM Heat Absorption Enthalpy Rate [W]', EnthalpyM(I), &
+!                                'System','Average',Facility(ZoneNum)%Name)
+! 
+!             CALL SetupOutputVariable('Facility PCM Heat Rejection Enthalpy Rate [W]', EnthalpyF(I), &
+!                                'System','Average',Facility(i)%Name)
+!
+! Surface Energy Consumption outputs:   
+!            CALL SetupOutputVariable('Surface PCM Heat Absorption Enthalpy Energy [J]', EnthalpyM(I), &
+!                               'System','Average',Surface(i)%Name)
+! 
+!           CALL SetupOutputVariable('Surface PCM Heat Rejection Enthalpy Energy [J]', EnthalpyF(I), &
+!                             'System','Average',Surface(i)%Name)
+! Zone Energy Consumption outputs:   
+!            CALL SetupOutputVariable('Zone PCM Heat Absorption Enthalpy Energy [J]', EnthalpyM(I), &
+!                               'System','Average',Zone(i)%Name)
+! 
+!           CALL SetupOutputVariable('Zone PCM Heat Rejection Enthalpy Energy [J]', EnthalpyF(I), &
+!                             'System','Average',Zone(i)%Name)
+!
+! Facility Energy Consumption outputs:   
+!            CALL SetupOutputVariable('Facility PCM Heat Absorption Enthalpy Energy [J]', EnthalpyM(I), &
+!                               'System','Average',Facility(i)%Name)
+! 
+!           CALL SetupOutputVariable('Facility PCM Heat Rejection Enthalpy Energy [J]', EnthalpyF(I), &
+!                             'System','Average',Facility(i)%Name)
+!
+!VE-2016 DEV END
     END DO
 
   ENDDO  ! End of the Surface Loop for Report Variable Setup
@@ -1131,7 +1350,54 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
 
 
   Delt = ConstructFD(ConstrNum)%DeltaTime    !   (seconds)
-
+!VE START
+ If(BeginEnvrnFlag)Then
+    SurfaceFD(Surf)%TOld = 23.0d0
+    SurfaceFD(Surf)%RhovOld = 0.0115d0
+    SurfaceFD(Surf)%TDOld = 23.0d0
+    SurfaceFD(Surf)%EnthOld = 1000.d0
+    SurfaceFD(Surf)%T = 0.0
+    SurfaceFD(Surf)%TT = 0.0
+    SurfaceFD(Surf)%Rhov = 0.0
+    SurfaceFD(Surf)%RhoT = 0.0
+    SurfaceFD(Surf)%RH = 0.0
+    SurfaceFD(Surf)%TDreport = 0.0
+    SurfaceFD(Surf)%Enthreport = 0.0   
+    SurfaceFD(Surf)%TD = 0.0
+    SurfaceFD(Surf)%TDT = 0.0
+    SurfaceFD(Surf)%TempLastStep = 0.0
+    SurfaceFD(Surf)%TDTLast=0.0
+    SurfaceFD(Surf)%EnthOld =0.0
+    SurfaceFD(Surf)%EnthLast =0.0
+    SurfaceFD(Surf)%EnthNew = 0.0
+    SurfaceFD(Surf)%CpOld=1200 ! SpecHeatSolidPCM 
+    SurfaceFD(Surf)%CpOld1=1200 ! SpecHeatSolidPCM
+    SurfaceFD(Surf)%CpOld2=1200 ! SpecHeatSolidPCM
+    SurfaceFD(Surf)%Cp_node=1200 ! SpecHeatSolidPCM 
+    SurfaceFD(Surf)%Cp1_node=1200 ! SpecHeatSolidPCM
+    SurfaceFD(Surf)%Cp2_node=1200 ! SpecHeatSolidPCM
+    SurfaceFD(Surf)%PhaseChangeDeltaT=1
+    SurfaceFD(Surf)%PhaseChangeDeltaTOld=1
+    SurfaceFD(Surf)%PhaseChangeState=2
+    SurfaceFD(Surf)%PhaseChangeStateold=2
+    SurfaceFD(Surf)%PhaseChangeStateoldold=2
+    SurfaceFD(Surf)%PhaseChangeTemperatureReverse=50
+ End If
+ SurfaceFD(Surf)%T = SurfaceFD(Surf)%TOld
+ SurfaceFD(Surf)%Rhov = SurfaceFD(Surf)%RhovOld
+ SurfaceFD(Surf)%TD = SurfaceFD(Surf)%TDOld
+ SurfaceFD(Surf)%TDT = SurfaceFD(Surf)%TDOld
+ SurfaceFD(Surf)%TempLastStep = SurfaceFD(Surf)%TDOld
+ SurfaceFD(Surf)%TDTLast=SurfaceFD(Surf)%TDOld
+ SurfaceFD(Surf)%EnthOld = SurfaceFD(Surf)%EnthOld
+ SurfaceFD(Surf)%EnthNew =SurfaceFD(Surf)%EnthOld
+ SurfaceFD(Surf)%EnthLast = SurfaceFD(Surf)%EnthOld
+ SurfaceFD(Surf)%EnthLastStep       = SurfaceFD(Surf)%EnthOld
+ SurfaceFD(Surf)%PhaseChangeDeltaTOld=SurfaceFD(Surf)%PhaseChangeDeltaT
+ SurfaceFD(Surf)%CpOld=SurfaceFD(Surf)%Cp_node
+ SurfaceFD(Surf)%CpOld1=SurfaceFD(Surf)%Cp1_node
+ SurfaceFD(Surf)%CpOld2=SurfaceFD(Surf)%Cp2_node
+!VE END 
   CALL EvalOutsideMovableInsulation(Surf,HMovInsul,RoughIndexMovInsul,AbsExt)
  ! Start stepping through the slab with time.
   DO J=1,NINT((TimeStepZone*SecInHour)/Delt)  !PT testing higher time steps
@@ -1146,6 +1412,7 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
 
         !For the exterior surface node with a convective boundary condition
         IF(I == 1 .and. Lay ==1)THEN
+!VE START@ SurfaceFD(Surf)%CpOld
           CALL ExteriorBCEqns(Delt,I,Lay,Surf,SurfaceFD(Surf)%T, &
                                         SurfaceFD(Surf)%TT, &
                                         SurfaceFD(Surf)%Rhov, &
@@ -1155,7 +1422,16 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
                                         SurfaceFD(Surf)%TDT,&
                                         SurfaceFD(Surf)%EnthOld, &
                                         SurfaceFD(Surf)%EnthNew, &
-                                        TotNodes,HMovInsul)
+                                          TotNodes,HMovInsul,  &                                         
+                                          SurfaceFD(Surf)%CpOld, &
+                                          SurfaceFD(Surf)%PhaseChangeDeltaT, SurfaceFD(Surf)%PhaseChangeTransition,  &
+                                          SurfaceFD(Surf)%Cp_node, &
+                                          SurfaceFD(Surf)%PhaseChangeState, &
+                                          SurfaceFD(Surf)%PhaseChangeStateold, SurfaceFD(Surf)%PhaseChangeTransitionOld, &
+                                          SurfaceFD(Surf)%PhaseChangeDeltaTOld, &
+                                          SurfaceFD(Surf)%PhaseChangeStateoldold, &
+                                          SurfaceFD(Surf)% PhaseChangeTemperatureReverse, Tc, TcOld, SurfaceFD(Surf)%EnthLastStep)       
+!VE END      
         END IF
 
         !For the Layer Interior nodes.  Arrive here after exterior surface node or interface node
@@ -1164,6 +1440,7 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
 
           DO Ctr=2,ConstructFD(ConstrNum)%NodeNumPoint(Lay)
             I=I+1
+!VE START@   SurfaceFD(Surf)%CpOld
             CALL InteriorNodeEqns(Delt,I,Lay,Surf,SurfaceFD(Surf)%T, &
                                   SurfaceFD(Surf)%TT, &
                                   SurfaceFD(Surf)%Rhov, &
@@ -1172,13 +1449,22 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
                                   SurfaceFD(Surf)%TD, &
                                   SurfaceFD(Surf)%TDT, &
                                   SurfaceFD(Surf)%EnthOld, &
-                                  SurfaceFD(Surf)%EnthNew)
+                                    SurfaceFD(Surf)%EnthNew, &
+                                    SurfaceFD(Surf)%CpOld, &
+                                    SurfaceFD(Surf)%PhaseChangeDeltaT, SurfaceFD(Surf)%PhaseChangeTransition, &
+                                    SurfaceFD(Surf)%Cp_node, &
+                                          SurfaceFD(Surf)%PhaseChangeState, &
+                                          SurfaceFD(Surf)%PhaseChangeStateold, SurfaceFD(Surf)%PhaseChangeTransitionOld,&
+                                          SurfaceFD(Surf)%PhaseChangeDeltaTOld, SurfaceFD(Surf)%PhaseChangeStateoldold, &
+                                          SurfaceFD(Surf)% PhaseChangeTemperatureReverse) 
+!VE END  
           END DO
         END IF
 
         IF(Lay < TotLayers .and. TotNodes .ne. 1) THEN
           !Interface equations for 2 capactive materials
           I=I+1
+!VE START@ SurfaceFD(Surf)%CpOld1
           CALL IntInterfaceNodeEqns(Delt,I,Lay,Surf,SurfaceFD(Surf)%T, &
                                    SurfaceFD(Surf)%TT, &
                                    SurfaceFD(Surf)%Rhov, &
@@ -1187,11 +1473,21 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
                                    SurfaceFD(Surf)%TD, &
                                    SurfaceFD(Surf)%TDT, &
                                    SurfaceFD(Surf)%EnthOld, &
-                                   SurfaceFD(Surf)%EnthNew,GSiter)
-
+                                     SurfaceFD(Surf)%EnthNew,GSiter, &
+                                     SurfaceFD(Surf)%CpOld1, &
+                                     SurfaceFD(Surf)%CpOld2, &
+                                     SurfaceFD(Surf)%PhaseChangeDeltaT, SurfaceFD(Surf)%PhaseChangeTransition, &
+                                     SurfaceFD(Surf)%Cp1_node, &
+                                     SurfaceFD(Surf)%Cp2_node, &
+                                          SurfaceFD(Surf)%PhaseChangeState, &
+                                          SurfaceFD(Surf)%PhaseChangeStateold, &
+                                          SurfaceFD(Surf)%PhaseChangeStateoldold, &
+                                          SurfaceFD(Surf)% PhaseChangeTemperatureReverse) 
+!VE END 
         ELSE IF (Lay == TotLayers) THEN
           !For the Interior surface node with a convective boundary condition
           I=I+1
+!VE START@ SurfaceFD(Surf)%CpOld 
           CALL InteriorBCEqns(Delt,I,Lay,Surf, &
                                    SurfaceFD(Surf)%T, &
                                    SurfaceFD(Surf)%TT, &
@@ -1202,7 +1498,15 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
                                    SurfaceFD(Surf)%TDT, &
                                    SurfaceFD(Surf)%EnthOld, &
                                    SurfaceFD(Surf)%EnthNew, &
-                                   SurfaceFD(Surf)%TDReport)
+                                   SurfaceFD(Surf)%TDReport, &
+                                     SurfaceFD(Surf)%CpOld, &
+                                     SurfaceFD(Surf)%PhaseChangeDeltaT, &
+                                     SurfaceFD(Surf)%Cp_node, &
+                                          SurfaceFD(Surf)%PhaseChangeState, &
+                                          SurfaceFD(Surf)%PhaseChangeStateold, &
+                                          SurfaceFD(Surf)%PhaseChangeStateoldold, &
+                                          SurfaceFD(Surf)% PhaseChangeTemperatureReverse,SurfaceFD(Surf)%PhaseChangeTransition )
+!VE END
         END IF
 
       END DO    !The end of the layer loop
@@ -1266,7 +1570,53 @@ SUBROUTINE CalcHeatBalFiniteDiff(Surf,TempSurfInTmp,TempSurfOutTmp)
       SurfaceFD(Surf)%EnthOld = SurfaceFD(Surf)%EnthNew
     ENDIF
 
-  END DO     !The end of the Time Loop   !PT solving time steps
+!VE START
+     SurfaceFD(Surf)%CpOld=SurfaceFD(Surf)%Cp_node
+     SurfaceFD(Surf)%CpOld1=SurfaceFD(Surf)%Cp1_node
+     SurfaceFD(Surf)%CpOld2=SurfaceFD(Surf)%Cp2_node
+
+     I= 1   !  Node counter
+     Do I = 1,(TotNodes+1)
+        !When the phase change process reverses its direction while melting or freezing (without completing its phase 
+        !to either liquid or solid), the temperature at which it changes its direction is saved 
+        !in the variable  PhaseChangeTemperatureReverse, and this variable will hold the value of the temperature until
+        !the next reverse in the process takes place.
+        If ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 1 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 0)) Then
+            SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
+        ElseIf ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 0 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 1 )) Then
+            SurfaceFD(Surf) % PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
+        ELSE If ((SurfaceFD(Surf)%PhaseChangeStateold(I) == -1 .and. SurfaceFD(Surf)%PhaseChangeState(I) == 0)) Then
+            SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)
+        ElseIf ((SurfaceFD(Surf)%PhaseChangeStateold(I) == 0 .and. SurfaceFD(Surf)%PhaseChangeState(I) == -1)) Then
+            SurfaceFD(Surf)% PhaseChangeTemperatureReverse(I) = SurfaceFD(Surf)%TDT(I)            
+        End If    
+     End Do
+
+     SurfaceFD(Surf)%PhaseChangeDeltaTOld=SurfaceFD(Surf)%PhaseChangeDeltaT
+     SurfaceFD(Surf)%PhaseChangeStateoldold=SurfaceFD(Surf)%PhaseChangeStateold
+     SurfaceFD(Surf)%PhaseChangeStateold=SurfaceFD(Surf)%PhaseChangeState
+     SurfaceFD(Surf)%PhaseChangeDeltaT=SurfaceFD(Surf)%TD - SurfaceFD(Surf)%TDT 
+     SurfaceFD(Surf)%PhaseChangeTransitionOld= SurfaceFD(Surf)%PhaseChangeTransition
+     
+     TcOld =Tc
+ 
+     ! If the value of PhaseChangeDeltaT is positive then the PCM is on the freezing curve (heat rejection).
+     ! If the value of PhaseChangeDeltaT is negative then PCM is on the melting curve (heat absorption). 
+                                                                 
+     I= 1   !  Node counter
+     Do I = 1,(TotNodes+1)
+        If (SurfaceFD(Surf)%PhaseChangeDeltaT(I) == 0) Then
+            SurfaceFD(Surf)%PhaseChangeDeltaT(I) = SurfaceFD(Surf)%PhaseChangeDeltaTOld(I)
+        End If        
+     End Do
+     
+   SurfaceFD(Surf)%TempLastStep = SurfaceFD(Surf)%TD
+   SurfaceFD(Surf)%TD = SurfaceFD(Surf)%TDT
+   SurfaceFD(Surf)%EnthLastStep = SurfaceFD(Surf)%EnthOld
+   SurfaceFD(Surf)%EnthOld = SurfaceFD(Surf)%EnthNew
+!VE END
+
+ END DO     !The end of the Time Loop   !PT solving time steps
 
   TempSurfOutTmp = SurfaceFD(Surf)%TDT(1)
   TempSurfInTmp  = SurfaceFD(Surf)%TDT(TotNodes+1)
@@ -1525,7 +1875,11 @@ END Function
 
 ! Equation Types of the Module
 !******************************************************************************
-SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthNew,TotNodes,HMovInsul)
+!VE START@ CpOld
+SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthNew,TotNodes,HMovInsul, &
+                            CpOld,PhaseChangeDeltaT,PhaseChangeTransition, Cp_node,PhaseChangeState,PhaseChangeStateold, PhaseChangeTransitionOld, &
+                            PhaseChangeDeltaTOld,PhaseChangeStateoldold,Tr, Tc ,TcOld, EnthLastStep) 
+! VE END
 
           ! SUBROUTINE INFORMATION:
           !       AUTHOR         Richard Liesen
@@ -1534,6 +1888,7 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
           !                      May 2011, B. Griffith, P. Tabares
           !                      November 2011 P. Tabares fixed problems with adiabatic walls/massless walls
           !                      November 2011 P. Tabares fixed problems PCM stability problems
+		  !                      2013-2016, NRGsim Inc., added  Material Property Phase Change Hysteresis Routines.
           !       RE-ENGINEERED  Curtis Pedersen 2006
 
           ! PURPOSE OF THIS SUBROUTINE:
@@ -1566,7 +1921,25 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
   REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthNew    ! New Nodal enthalpy
   INTEGER, INTENT(IN)  :: TotNodes !  Total nodes in layer
   REAL(r64), INTENT(IN) :: HMovInsul  !  Conductance of movable(transparent) insulation.
-
+!VE START
+  REAL(r64),Dimension(:), Intent(In)    :: EnthLastStep      
+  REAL(r64), Intent(InOut)    :: Tc
+  REAL(r64), Intent(In)    :: TcOld
+  REAL(r64),Dimension(100)              :: EnthalpyF ! Freezing Enthalpy at a particular temperature 
+  REAL(r64),Dimension(100)              :: EnthalpyM ! Melting Enthalpy at a particular temperature    
+  REAL(r64), Dimension(100)             :: EnthRev
+  REAL(r64),Dimension(:), Intent(InOut) :: CpOld      ! Old Specific Heat of the node, used only in case of PCM
+  Real(r64),Dimension(:), Intent(In)    :: PhaseChangeDeltaT 
+  INTEGER,Dimension(:), Intent(InOut)   :: PhaseChangeTransition
+  REAL(r64),Dimension(:), Intent(InOut) :: Cp_node    ! Nodal Specific Heat
+  Integer,Dimension(:), Intent(InOut)    :: PhaseChangeState !-2=Liquid, -1=Melting, 0=Transition, 1=Freezing, 2=Crystallized
+  Integer,Dimension(:), Intent(InOut)    :: PhaseChangeStateold
+  Real(r64),Dimension(:), Intent(In)     :: PhaseChangeDeltaTOld
+  Integer,Dimension(:), Intent(InOut)    :: PhaseChangeStateoldold
+  Integer,Dimension(:), Intent(In)       :: PhaseChangeTransitionold
+  REAL(r64),Dimension(:), Intent(In)     :: Tr !  PhaseChangeTemperatureReverse
+  REAL(r64)                              :: DeltaH
+!VE END
           ! SUBROUTINE PARAMETER DEFINITIONS:
           ! na
 
@@ -1609,7 +1982,27 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
   REAL(r64) :: QRadSWOutMvInsulFD  ! SW radiation at outside of Movable Insulation
   INTEGER   :: LayIn  ! layer number for call to interior eqs
   INTEGER   :: NodeIn ! node number "I" for call to interior eqs
-
+!VE START
+  REAL(r64)         :: TempTlowPCM
+  REAL(r64)         :: TempThighPCM
+  REAL(r64)         :: TempTlowPCF
+  REAL(r64)         :: TempThighPCF
+  REAL(r64)         :: SpecHeatSolidPCM
+  REAL(r64)         :: SpecHeatLiquidPCM
+  REAL(r64)         :: SpecHeatTransition 
+  REAL(r64)         :: Tau1
+  REAL(r64)         :: Tau2
+  !*****************************************************************************
+  ! These are variables that explicitly hold the freezing and melting curve 
+  ! properties and are used in the transition region only
+  REAL(r64)         :: Tau1M ! Melting Region Low
+  REAL(r64)         :: Tau2M ! Melting Region High
+  REAL(r64)         :: Tau1F ! Freezing Region Low
+  REAL(r64)         :: Tau2F ! Freezing Region High
+  REAL(r64)         :: DeltaHM ! Latent heat of Melting
+  REAL(r64)         :: DeltaHF ! Latent heat of Freezing
+!********************************************************************************
+!VE END
   ConstrNum=Surface(surf)%Construction
 
   !Boundary Conditions from Simulation for Exterior
@@ -1639,7 +2032,32 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
   SigmaCLoc=SigmaC(ConstrNum)
 
   MatLay = Construct(ConstrNum)%LayerPoint(Lay)
-
+!VE START
+  TcM = Material(MatLay)%Tm
+  Tau1 = Material(MatLay)%Tau1
+  Tau2 = Material(MatLay)%Tau2
+  TempTlowPCM       = TcM-Tau1        ! Temperature at which Phase Change process starts
+  TempThighPCM      = TcM+Tau2        ! Temperature at which Phase Change process ends 
+  Material(MatLay)%TempLowPCM = TempTlowPCM            
+  Material(MatLay)%TempHighPCM= TempThighPCM
+  TcF = Material(MatLay)%Tf
+  Tau1F = Material(MatLay)%Tau1Prime
+  Tau2F = Material(MatLay)%Tau2Prime
+  TempTlowPCF       = TcF-Tau1F        ! Temperature at which Phase Change process starts
+  TempThighPCF      = TcF+Tau2F        ! Temperature at which Phase Change process ends         
+  Material(MatLay)%TempLowPCF = TempTlowPCF            
+  Material(MatLay)%TempHighPCF= TempThighPCF
+    
+  SpecHeatSolidPCM  = Material(MatLay)%CpSolid
+  SpecHeatLiquidPCM = Material(MatLay)%CpLiquid
+  SpecHeatTransition = (SpecHeatSolidPCM+SpecHeatLiquidPCM)/2
+  DeltaHM = Material(MatLay)%DeltaHF
+  DeltaHF = Material(MatLay)%DeltaHS
+  Tau1M = Material(MatLay)%Tau1
+  Tau2M = Material(MatLay)%Tau2
+  Tau1F = Material(MatLay)%Tau1Prime
+  Tau2F = Material(MatLay)%Tau2Prime
+ !VE END
   IF(Surface(Surf)%ExtBoundCond == Ground .or. IsRain)THEN
     TDT(I) = Toa
     TT(I) = Toa
@@ -1653,8 +2071,7 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
 
     IF (Surface(Surf)%ExtBoundCond == surf) THEN   !adiabatic surface, PT addded since it is not the same as interzone wall
                                                    ! as Outside Boundary Condition Object can be left blank.
-
-
+!VE START@ SurfaceFD(Surf)%CpOld
       CALL InteriorBCEqns(Delt,nodeIn,LayIn,Surf,SurfaceFD(Surf)%T, &
                                           SurfaceFD(Surf)%TT, &
                                           SurfaceFD(Surf)%Rhov, &
@@ -1664,16 +2081,24 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
                                           SurfaceFD(Surf)%TDT, &
                                           SurfaceFD(Surf)%EnthOld, &
                                           SurfaceFD(Surf)%EnthNew, &
-                                          SurfaceFD(Surf)%TDReport)
+                                          SurfaceFD(Surf)%TDReport, &
+                                          SurfaceFD(Surf)%CpOld, &
+                                          SurfaceFD(Surf)%PhaseChangeDeltaT, &
+                                          SurfaceFD(Surf)%Cp_node, &
+                                          SurfaceFD(Surf)%PhaseChangeState, &
+                                          SurfaceFD(Surf)%PhaseChangeStateold, &
+                                          SurfaceFD(Surf)%PhaseChangeStateoldold, &
+                                          SurfaceFD(Surf)%PhaseChangeTemperatureReverse,SurfaceFD(Surf)%PhaseChangeTransition )
+!VE END
+
       TDT(I)  = SurfaceFD(Surf)%TDT(TotNodes + 1)
       TT(I)   = SurfaceFD(Surf)%TT(TotNodes + 1)
       RhoT(I) = SurfaceFD(Surf)%RhoT(TotNodes + 1)
 
     ELSE
-
+!VE START@ SurfaceFD(Surf)%CpOld
       CALL InteriorBCEqns(Delt,nodeIn,LayIn,Surface(Surf)%ExtBoundCond,SurfaceFD(Surface(Surf)%ExtBoundCond)%T, &
-!potential-lkl-from old      CALL InteriorBCEqns(Delt,nodeIn,LayIn,Surf,SurfaceFD(Surface(Surf)%ExtBoundCond)%T, &
-                                            SurfaceFD(Surface(Surf)%ExtBoundCond)%TT, &
+SurfaceFD(Surface(Surf)%ExtBoundCond)%TT, & !potential-lkl-from old      CALL InteriorBCEqns(Delt,nodeIn,LayIn,Surf,SurfaceFD(Surface(Surf)%ExtBoundCond)%T, &
                                             SurfaceFD(Surface(Surf)%ExtBoundCond)%Rhov, &
                                             SurfaceFD(Surface(Surf)%ExtBoundCond)%RhoT, &
                                             SurfaceFD(Surface(Surf)%ExtBoundCond)%RH, &
@@ -1681,8 +2106,17 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
                                             SurfaceFD(Surface(Surf)%ExtBoundCond)%TDT, &
                                             SurfaceFD(Surface(Surf)%ExtBoundCond)%EnthOld, &
                                             SurfaceFD(Surface(Surf)%ExtBoundCond)%EnthNew, &
-                                            SurfaceFD(Surface(Surf)%ExtBoundCond)%TDReport)
-
+                                            SurfaceFD(Surface(Surf)%ExtBoundCond)%TDReport, &
+					    SurfaceFD(Surf)%CpOld, &
+                                            SurfaceFD(Surf)%PhaseChangeDeltaT, &
+                                            SurfaceFD(Surf)%Cp_node, &
+                                            SurfaceFD(Surf)%PhaseChangeState, &
+                                            SurfaceFD(Surf)%PhaseChangeStateold, &
+                                            SurfaceFD(Surf)%PhaseChangeStateoldold, &
+                                            SurfaceFD(Surf)% PhaseChangeTemperatureReverse,SurfaceFD(Surf)%PhaseChangeTransition )
+ 
+		! now fill results from interior BC model eqns into local result for current call
+!VE END
       TDT(I)  = SurfaceFD(Surface(Surf)%ExtBoundCond)%TDT(TotNodes + 1)
       TT(I)   = SurfaceFD(Surface(Surf)%ExtBoundCond)%TT(TotNodes + 1)
       RhoT(I) = SurfaceFD(Surface(Surf)%ExtBoundCond)%RhoT(TotNodes + 1)
@@ -1781,7 +2215,204 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
          ELSE
            Cp = Cpo
          END IF ! Phase Change Material option
+!VE START                         
+             IF(Material(Matlay)%DeltaHS >0) THEN                                                           
+              
+                TempTlowPCM            =    Material(MatLay)%TempLowPCM        ! Temperature at which Phase Change process starts
+                TempThighPCM        =    Material(MatLay)%TempHighPCM     ! Temperature at which Phase Change process ends           
+                TempTlowPCF            =    Material(MatLay)%TempLowPCF        ! Temperature at which Phase Change process starts
+                TempThighPCF        =    Material(MatLay)%TempHighPCF     ! Temperature at which Phase Change process ends 
+    
+                IF (PhaseChangeDeltaT(I)<0) THEN
+                    IF(TDT(I)<TempTlowPCM) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                 
+            
+                    ELSE IF(TDT(I)>=TempTlowPCM .AND. TDT(I)<=TempThighPCM )THEN
+                       PhaseChangeState(I)=-1
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF
+                        
+                         IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                             (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                            PhaseChangeState(I) = 0
+                         END IF
+                    ELSE IF(TDT(I)>TempTHighPCM) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                        
+                    END IF    
 
+                 ELSE IF(PhaseChangeDeltaT(I)>0) THEN
+                    IF (TDT(I)<TempTLowPCF) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                                
+                    ELSE IF (TDT(I)>=TempTlowPCF .AND. TDT(I)<=TempThighPCF) THEN
+                       PhaseChangeState(I)=1
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1)) THEN 
+                           PhaseChangeState(I) = 0
+                        END IF
+                    ELSE IF (TDT(I)>TempThighPCF) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                    END IF
+                 END IF
+                    
+                 IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==2)THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                     PhaseChangeTransition(I) =1
+                    PhaseChangeState(I)=0
+                 ELSE IF(PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I)==0 )THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==2 .AND.PhaseChangeState(I)==0)THEN   
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE 
+                     PhaseChangeTransition(I) = 0
+                 END IF
+                
+				IF (HysteresisFlag == 1) THEN   
+                    IF(PhaseChangeTransition(I) == 0)THEN
+                        EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                    
+                        EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                        
+                        
+                    ELSE IF(PhaseChangeTransition(I) ==1) THEN     
+                         IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                        
+                             
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                        !------------------------------------------------------------------------------------------------------------
+                            IF (EnthNew(I) < EnthRev(I) .AND. EnthNew(I) >= EnthalpyF(I) .AND. TDT(I) <= TD(I)) THEN
+                               PhaseChangeState(I) = 1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                         !---------------DONOT CHANGE TO ENTHREV----------------!
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition*  TD(I))))  
+                            !------------------------------------------------------------------!
+                            ELSE IF (EnthNew(I) < EnthalpyF(I).AND. TDT(I) > Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition*  Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I) .AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            END IF
+                         !--------------------------------------------------------------------------------------------------------------   
+                        ELSE IF (PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 0) THEN   
+                            
+                            IF(TDT(I) < Tr(I)) THEN
+                               Tc = TcM
+                               Tau1 = Tau1M
+                               Tau2 = Tau2M
+                               DeltaH = DeltaHM
+                            ELSE IF(TDT(I) > Tr(I)) THEN
+                               Tc = TcF
+                               Tau1 = Tau1F
+                               Tau2 = Tau2F
+                               DeltaH = DeltaHF
+                            END IF
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (TDT(I) < Tr(I).AND. EnthNew(I) > EnthalpyF(I)) THEN
+                               PhaseChangeState(I) = 1                    
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. (TDT(I)<TD(I) .OR. TDT(I)>TD(I))) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I).AND. EnthNew(I) > EnthOld(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+                        !-----------------------------------------------------------------------------------------------------------------    
+                        ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1) THEN                        
+                            
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)             
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+
+                            IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            END IF
+                        !--------------------------------------------------------------------------------------------------------                                  
+                        ELSE IF(PhaseChangeStateOld(I) == -1 .AND.PhaseChangeState(I) == 0) THEN                        
+                            
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (EnthNew(I) < EnthOld(I) .AND. TDT(I) < TD(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I))))
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. TDT(I) <TD(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) >= EnthalpyF(I).AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+ !----------------------------------------------------------------------------------------------------------------------------------                                          
+                        ELSE IF(PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 1) THEN                        
+                            
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                        
+                        END IF 
+                    END IF  
+                END IF
+
+                IF(PhaseChangeTransition(I)==0) THEN
+                    
+                    IF (EnthNew(I)==EnthOld(I))  THEN
+                        Cp=CpOld(I)
+                    ELSE
+                        Cp = SpecHeat(I, TD(I), TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM, EnthOld(I), EnthNew(I))            
+                    END IF
+                    
+                ELSE IF(PhaseChangeTransition(I)==1) THEN
+                    Cp =  SpecHeatTransition
+                END IF
+                
+                Cp_node(I) = Cp
+
+            ELSE    ! Regular Material
+                Cp = Cpo
+                Cp_node(I) = Cp
+            END IF 
+!VE END
 !     Choose Regular or Transparent Insulation Case
 
         IF(HMovInsul <= 0.0d0 ) THEN  !  regular  case
@@ -1880,8 +2511,12 @@ SUBROUTINE ExteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
 RETURN
 
 END SUBROUTINE ExteriorBCEqns
+!VE START@ CpOld
+SUBROUTINE InteriorNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthNew,CpOld, &
+                            PhaseChangeDeltaT,PhaseChangeTransition, Cp_node,PhaseChangeState,PhaseChangeStateold, PhaseChangeTransitionOld, &
+                            PhaseChangeDeltaTOld,PhaseChangeStateoldold,Tr) 
+!VE END
 
-SUBROUTINE InteriorNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthNew)
 
           ! SUBROUTINE INFORMATION:
           !       AUTHOR         Richard Liesen
@@ -1917,9 +2552,27 @@ SUBROUTINE InteriorNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,Ent
   REAL(r64),DIMENSION(:), INTENT(InOut) :: RH    !INSIDE SURFACE TEMPERATURE OF EACH HEAT TRANSFER SURF.
   REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthOld    ! Old Nodal enthalpy
   REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthNew    ! New Nodal enthalpy
+!VE START 
+    REAL(r64),Dimension(100) :: EnthalpyF  
+    REAL(r64),Dimension(100) :: EnthalpyM 
+    REAL(r64),Dimension(100) :: Enthalpy
+    REAL(r64),Dimension(:), Intent(InOut) :: CpOld   
+    REAL(r64),Dimension(:), Intent(InOut) :: Cp_node      ! Nodal Specific Heat
+    REAL(r64),Dimension(:), Intent(In) :: PhaseChangeDeltaT
+    REAL(r64),Dimension(:), Intent(In) :: PhaseChangeDeltaTOld
+    INTEGER,Dimension(:), Intent(InOut) :: PhaseChangeTransition
+    INTEGER,Dimension(:), Intent(In) :: PhaseChangeTransitionOld
+    REAL(r64)  :: Tc
+    REAL(r64)    :: DeltaH
+    Integer,Dimension(:),Intent(InOut)        ::PhaseChangeState 
+    Integer,Dimension(:),Intent(In)            ::PhaseChangeStateold
+    Integer,Dimension(:),Intent(In)            ::PhaseChangeStateoldold 
+    REAL(r64),Dimension(:), Intent(In)        :: Tr ! PhaseChangeTemperatureReverse 
+    REAL(r64), Dimension(100)  :: EnthRev
+    REAL(r64), PARAMETER :: NinetyNine=99.0d0
+!VE END
 
-
-          ! SUBROUTINE PARAMETER DEFINITIONS:
+         ! SUBROUTINE PARAMETER DEFINITIONS:
 !  REAL(r64), PARAMETER :: NinetyNine=99.0d0
 
           ! INTERFACE BLOCK SPECIFICATIONS:
@@ -1946,11 +2599,57 @@ SUBROUTINE InteriorNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,Ent
   REAL(r64) :: Cp   !  Cp used
   REAL(r64) :: Cpo  !  Const Cp from input
   REAL(r64) :: RhoS
+!VE START
+    REAL(r64)         :: TempTlowPCM
+    REAL(r64)         :: TempThighPCM
+    REAL(r64)         :: TempTlowPCF
+    REAL(r64)         :: TempThighPCF
+    REAL(r64)         :: SpecHeatSolidPCM
+    REAL(r64)         :: SpecHeatLiquidPCM
+    REAL(r64)         :: SpecHeatTransition
+    INTEGER           :: TransFlag
+    
+    !*****************************************************************************
+    ! These are variables that explicitly hold the freezing and melting curve 
+    ! properties and are used  in the transition region only
+    REAL(r64)         :: Tau1M ! Melting Region low
+    REAL(r64)         :: Tau2M ! Melting Region high
+    REAL(r64)         :: Tau1F ! Freezing Region low
+    REAL(r64)         :: Tau2F ! Freezing Region high
+    REAL(r64)         :: DeltaHM ! Latent heat of Melting
+    REAL(r64)         :: DeltaHF ! Latent heat of Freezing
+    !********************************************************************************
+  !VE END 
 
   ConstrNum=Surface(surf)%Construction
 
   MatLay = Construct(ConstrNum)%LayerPoint(Lay)
 
+!VE START  
+    TcM = Material(MatLay)%Tm
+    Tau1 = Material(MatLay)%Tau1
+    Tau2 = Material(MatLay)%Tau2
+    TempTlowPCM       = TcM-Tau1        ! Temperature at which Phase Change process starts
+    TempThighPCM      = TcM+Tau2    ! Temperature at which Phase Change process ends 
+    Material(MatLay)%TempLowPCM = TempTlowPCM            
+    Material(MatLay)%TempHighPCM= TempThighPCM      
+    TcF = Material(MatLay)%Tf
+    Tau1F = Material(MatLay)%Tau1Prime
+    Tau2F = Material(MatLay)%Tau2Prime
+    TempTlowPCF       = TcF-Tau1F        ! Temperature at which Phase Change process starts
+    TempThighPCF      = TcF+Tau2F    ! Temperature at which Phase Change process ends         
+    Material(MatLay)%TempLowPCF = TempTlowPCF            
+    Material(MatLay)%TempHighPCF= TempThighPCF  
+    SpecHeatSolidPCM  = Material(MatLay)%CpSolid
+    SpecHeatLiquidPCM = Material(MatLay)%CpLiquid
+    SpecHeatTransition = (SpecHeatSolidPCM+SpecHeatLiquidPCM)/2
+    DeltaHM = Material(MatLay)%DeltaHF
+    DeltaHF = Material(MatLay)%DeltaHS
+    Tau1M = Material(MatLay)%Tau1
+    Tau2M = Material(MatLay)%Tau2
+    Tau1F = Material(MatLay)%Tau1Prime
+    Tau2F = Material(MatLay)%Tau2Prime 
+!VE END
    !  Set Thermal Conductivity.  Can be constant, simple linear temp dep or multiple linear segment temp function dep.
   kto = Material(MatLay)%Conductivity   !  20C base conductivity
   kt1 = MaterialFD(MatLay)%tk1  !  linear coefficient (normally zero)
@@ -1988,6 +2687,184 @@ SUBROUTINE InteriorNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,Ent
     Cp = Cpo
 
   END IF ! Phase Change case
+!VE START
+             IF(Material(Matlay)%DeltaHS >0) THEN                                                           
+                TempTlowPCM            =    Material(MatLay)%TempLowPCM        ! Temperature at which Phase Change process starts
+                TempThighPCM        =    Material(MatLay)%TempHighPCM     ! Temperature at which Phase Change process ends           
+                TempTlowPCF            =    Material(MatLay)%TempLowPCF        ! Temperature at which Phase Change process starts
+                TempThighPCF        =    Material(MatLay)%TempHighPCF     ! Temperature at which Phase Change process ends   
+                IF (PhaseChangeDeltaT(I)<0) THEN
+                    IF(TDT(I)<TempTlowPCM) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                            
+                    ELSE IF(TDT(I)>=TempTlowPCM .AND. TDT(I)<=TempThighPCM )THEN
+                       PhaseChangeState(I)=-1
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                        
+                         IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                             (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                            PhaseChangeState(I) = 0
+                         END IF
+                    ELSE IF(TDT(I)>TempTHighPCM) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                        
+                    END IF    
+                 ELSE IF(PhaseChangeDeltaT(I)>0) THEN
+                    IF (TDT(I)<TempTLowPCF) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS                               
+                    ELSE IF (TDT(I)>=TempTlowPCF .AND. TDT(I)<=TempThighPCF) THEN
+                       PhaseChangeState(I)=1
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1)) THEN 
+                           PhaseChangeState(I) = 0
+                        END IF
+                    ELSE IF (TDT(I)>TempThighPCF) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                    END IF
+                 END IF                
+                 IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
+                    PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                    PhaseChangeTransition(I) =1
+                    PhaseChangeState(I)=0
+                 ELSE IF(PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I)==0 )THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE 
+                     PhaseChangeTransition(I) = 0
+                 END IF                  
+				IF (HysteresisFlag == 1) THEN  !VE-2016--CC is this stuff needed? JDC I really do not think so. 
+                    IF(PhaseChangeTransition(I) == 0)THEN
+                        EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                    
+                        EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                         
+                        IF (TDT(I) > Tr(I) .AND. EnthNew(I) < EnthalpyF(I)) THEN
+                            Tc= TcOld
+                            EnthNew(I) = SpecEnthalpy(I,TDT(I), TcOld, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                        END IF
+                    ELSE IF(PhaseChangeTransition(I) ==1) THEN     
+                          IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                                                    
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                        !------------------------------------------------------------------------------------------------------------
+                            IF (EnthNew(I) < EnthRev(I) .AND. EnthNew(I) >= EnthalpyF(I) .AND. TDT(I) <= TD(I)) THEN
+                               PhaseChangeState(I) = 1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                         !---------------DONOT CHANGE TO ENTHREV----------------!
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition*  TD(I))))  
+                            !------------------------------------------------------------------!
+                            ELSE IF (EnthNew(I) < EnthalpyF(I).AND. TDT(I) > Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition*  Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I) .AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            END IF
+                         !--------------------------------------------------------------------------------------------------------------   
+                        ELSE IF (PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 0) THEN                              
+                            IF(TDT(I) < Tr(I)) THEN
+                               Tc = TcM
+                               Tau1 = Tau1M
+                               Tau2 = Tau2M
+                               DeltaH = DeltaHM
+                            ELSE IF(TDT(I) > Tr(I)) THEN
+                               Tc = TcF
+                               Tau1 = Tau1F
+                               Tau2 = Tau2F
+                               DeltaH = DeltaHF
+                            END IF
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)                          
+                            IF (TDT(I) < Tr(I).AND. EnthNew(I) > EnthalpyF(I)) THEN
+                               PhaseChangeState(I) = 1                    
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. (TDT(I)<TD(I) .OR. TDT(I)>TD(I))) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I).AND. EnthNew(I) > EnthOld(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+                        !-----------------------------------------------------------------------------------------------------------------    
+                        ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1) THEN                                                   
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)             
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            END IF
+                        !--------------------------------------------------------------------------------------------------------                                  
+                        ELSE IF(PhaseChangeStateOld(I) == -1 .AND.PhaseChangeState(I) == 0) THEN                                                  
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)                          
+                            IF (EnthNew(I) < EnthOld(I) .AND. TDT(I) < TD(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I))))
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. TDT(I) <TD(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) >= EnthalpyF(I).AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+ !----------------------------------------------------------------------------------------------------------------------------------                                          
+                        ELSE IF(PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 1) THEN                                                    
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))                       
+                        END IF 
+                    END IF  
+                END IF
+                IF(PhaseChangeTransition(I)==0) THEN                    
+                    IF (EnthNew(I)==EnthOld(I))  THEN
+                        Cp=CpOld(I)
+                    ELSE
+                        Cp = SpecHeat(I, TD(I), TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM, EnthOld(I), EnthNew(I))            
+                    END IF                  
+                ELSE IF(PhaseChangeTransition(I)==1) THEN
+                    Cp =  SpecHeatTransition
+                END IF               
+                Cp_node(I) = Cp
+            ELSE    ! Regular Material
+                Cp = Cpo
+                Cp_node(I) = Cp
+            END IF 
+!VE END
 
   SELECT CASE (CondFDSchemeType)
 
@@ -2018,13 +2895,16 @@ RETURN
 
 END SUBROUTINE InteriorNodeEqns
 
-
-SUBROUTINE IntInterfaceNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthNew,GSiter)
-
+!VE START@ CpOld1
+SUBROUTINE IntInterfaceNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthNew,GSiter,CpOld1,CpOld2,PhaseChangeDeltaT, PhaseChangeTransition, &
+                                Cp1_node,Cp2_node,PhaseChangeState,PhaseChangeStateold,PhaseChangeStateoldold, &
+                                Tr)
+!VE END
           ! SUBROUTINE INFORMATION:
           !       AUTHOR         Richard Liesen
           !       DATE WRITTEN   November, 2003
           !       MODIFIED       May 2011, B. Griffith, P. Tabares,  add first order fully implicit, bug fixes, cleanup
+		  !                      2013-2016, NRGsim Inc., added  Material Property Phase Change Hysteresis Routines.		  
           !       RE-ENGINEERED  Curtis Pedersen, Changed to Implit mode and included enthalpy.  FY2006
 
           ! PURPOSE OF THIS SUBROUTINE:
@@ -2055,9 +2935,29 @@ SUBROUTINE IntInterfaceNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld
   REAL(r64),DIMENSION(:), INTENT(In)    :: TD     !OLD NODE TEMPERATURES OF EACH HEAT TRANSFER SURF IN CONDFD.
   REAL(r64),DIMENSION(:), INTENT(InOut) :: TDT    !NEW NODE TEMPERATURES OF EACH HEAT TRANSFER SURF IN CONDFD.
   REAL(r64),DIMENSION(:), INTENT(InOut) :: RH    !RELATIVE HUMIDITY.
-  REAL(r64),DIMENSION(:), INTENT(In)    :: EnthOld    ! Old Nodal enthalpy
   REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthNew    ! New Nodal enthalpy
+!VE START 
+!REAL(r64),DIMENSION(:), INTENT(In)    :: EnthOld    ! Old Nodal enthalpy V8 !JDC BugCheck Single Curve is "In", dual curve "InOut"
 
+  REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthOld    ! Old Nodal enthalpy VE !JDC BugCheck Single Curve is "In", dual curve "InOut"
+  REAL(r64),Dimension(100)              :: EnthalpyF  
+  REAL(r64),Dimension(100)              :: EnthalpyM 
+  REAL(r64),Dimension(100)              :: EnthRev 
+  INTEGER, Dimension(:), Intent(InOut)   :: PhaseChangeTransition
+  REAL(r64),Dimension(:), Intent(In)    :: Tr !  PhaseChangeTemperatureReverse
+    REAL(r64),Dimension(:), Intent(InOut)    :: CpOld1
+    REAL(r64),Dimension(:), Intent(InOut)    :: CpOld2
+    REAL(r64),Dimension(:), Intent(InOut)    :: Cp1_node      ! Nodal Specific Heat 1
+    REAL(r64),Dimension(:), Intent(InOut)    :: Cp2_node      ! Nodal Specific Heat 2
+    REAL(r64),Dimension(:), Intent(InOut)    :: PhaseChangeDeltaT 
+    Integer,Dimension(:),Intent(InOut)        ::PhaseChangeState
+    Integer,Dimension(:), Intent(InOut)       ::PhaseChangeStateold
+    Integer,Dimension(:),Intent(InOut)        ::PhaseChangeStateoldold
+    REAL(r64)    :: Tc
+    REAL(r64)    :: Tc2
+    REAL(r64)    :: DeltaH
+    REAL(r64)    :: DeltaH2
+!VE END
           ! SUBROUTINE PARAMETER DEFINITIONS:
 !  REAL(r64), PARAMETER :: NinetyNine=99.0d0
 
@@ -2101,10 +3001,114 @@ SUBROUTINE IntInterfaceNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld
   LOGICAL   :: RlayerPresent  = .FALSE.
   LOGICAL   :: RLayer2Present = .FALSE.
 
+
+!VE START
+    REAL(r64), PARAMETER :: NinetyNine=99.0d0
+    REAL(r64)         :: TempTlowPCM
+    REAL(r64)         :: TempThighPCM
+    REAL(r64)         :: TempTlowPCF
+    REAL(r64)         :: TempThighPCF
+    REAL(r64)         :: SpecHeatSolidPCM
+    REAL(r64)         :: SpecHeatLiquidPCM
+
+    !*****************************************************************************
+    ! These are variables that explicitly hold the freezing and melting curve 
+    ! Properties and are used  in the transition region only for PCM Layer #1
+    REAL(r64)         :: Tau1M ! Melting range
+    REAL(r64)         :: Tau2M ! Melting range
+    REAL(r64)         :: Tau1F ! Freezing Range 
+    REAL(r64)         :: Tau2F ! Freezing Region
+    REAL(r64)         :: DeltaHM ! Latent heat of Melting
+    REAL(r64)         :: DeltaHF ! Latent heat of Freezing
+    !********************************************************************************
+
+    REAL(r64)         :: TempTlowPCM2
+    REAL(r64)         :: TempThighPCM2
+    REAL(r64)         :: TempTlowPCF2
+    REAL(r64)         :: TempThighPCF2
+    REAL(r64)         :: SpecHeatSolidPCM2 
+    REAL(r64)         :: SpecHeatLiquidPCM2
+    REAL(r64)         :: SpecHeatTransition
+    REAL(r64)         :: SpecHeatTransition2
+ 
+    REAL(r64)         :: Tau12
+    REAL(r64)         :: Tau22
+    REAL(r64)         :: TcM2
+    REAL(r64)         :: Tau1F2
+    REAL(r64)         :: Tau2F2
+    REAL(r64)         :: TcF2
+
+    !*****************************************************************************
+    ! These are variables that explicitly hold the freezing and melting curve 
+    ! properties and are used  in the transition region only for PCM Layer #2
+    REAL(r64)         :: Tau12M ! Melting range
+    REAL(r64)         :: Tau22M ! Melting range
+    REAL(r64)         :: Tau12F ! Freezing Range 
+    REAL(r64)         :: Tau22F ! Freezing Region
+    REAL(r64)         :: DeltaH2M ! Latent heat of Melting
+    REAL(r64)         :: DeltaH2F ! Latent heat of Freezing
+    !********************************************************************************
+ !VE END
   ConstrNum=Surface(surf)%Construction
 
   MatLay = Construct(ConstrNum)%LayerPoint(Lay)
-  MatLay2 = Construct(ConstrNum)%LayerPoint(Lay+1)
+  MatLay2 = Construct(ConstrNum)%LayerPoint(Lay+1) 
+ !VE START   
+
+    TcM = Material(MatLay)%Tm
+    Tau1 = Material(MatLay)%Tau1
+    Tau2 = Material(MatLay)%Tau2
+    TempTlowPCM       = TcM-Tau1        ! Temperature at which Phase Change process starts
+    TempThighPCM      = TcM+Tau2    ! Temperature at which Phase Change process ends 
+    Material(MatLay)%TempLowPCM = TempTlowPCM            
+    Material(MatLay)%TempHighPCM= TempThighPCM
+
+    TcF = Material(MatLay)%Tf
+    Tau1F = Material(MatLay)%Tau1Prime
+    Tau2F = Material(MatLay)%Tau2Prime
+    TempTlowPCF       = TcF-Tau1F        ! Temperature at which Phase Change process starts
+    TempThighPCF      = TcF+Tau2F    ! Temperature at which Phase Change process ends         
+    Material(MatLay)%TempLowPCF = TempTlowPCF            
+    Material(MatLay)%TempHighPCF= TempThighPCF
+
+    TcM2 = Material(MatLay2)%Tm
+    Tau12 = Material(MatLay2)%Tau1
+    Tau22 = Material(MatLay2)%Tau2
+    TempTlowPCM2       = TcM2-Tau12        ! Temperature at which Phase Change process starts
+    TempThighPCM2      = TcM2+Tau22    ! Temperature at which Phase Change process ends 
+    Material(MatLay2)%TempLowPCM = TempTlowPCM2            
+    Material(MatLay2)%TempHighPCM= TempThighPCM2
+
+    TcF2 = Material(MatLay2)%Tf
+    Tau1F2 = Material(MatLay2)%Tau1Prime
+    Tau2F2 = Material(MatLay2)%Tau2Prime
+    TempTlowPCF2       = TcF2-Tau1F2        ! Temperature at which Phase Change process starts
+    TempThighPCF2      = TcF2+Tau2F2    ! Temperature at which Phase Change process ends         
+    Material(MatLay2)%TempLowPCF = TempTlowPCF2            
+    Material(MatLay2)%TempHighPCF= TempThighPCF2
+    
+    SpecHeatSolidPCM  = Material(MatLay)%CpSolid
+    SpecHeatLiquidPCM = Material(MatLay)%CpLiquid
+    SpecHeatSolidPCM2  = Material(MatLay2)%CpSolid
+    SpecHeatLiquidPCM2 = Material(MatLay2)%CpLiquid
+    SpecHeatTransition = (SpecHeatSolidPCM + SpecHeatLiquidPCM)/2
+    SpecHeatTransition2 = (SpecHeatSolidPCM2 + SpecHeatLiquidPCM2)/2
+    
+    DeltaHM = Material(MatLay)%DeltaHF
+    DeltaHF = Material(MatLay)%DeltaHS
+    Tau1M = Material(MatLay)%Tau1
+    Tau2M = Material(MatLay)%Tau2
+    Tau1F = Material(MatLay)%Tau1Prime
+    Tau2F = Material(MatLay)%Tau2Prime 
+    
+    DeltaH2M = Material(MatLay2)%DeltaHF
+    DeltaH2F = Material(MatLay2)%DeltaHS
+    Tau12M = Material(MatLay2)%Tau1
+    Tau22M = Material(MatLay2)%Tau2
+    Tau12F = Material(MatLay2)%Tau1Prime
+    Tau22F = Material(MatLay2)%Tau2Prime 
+!VE END
+
   !  Set Thermal Conductivity.  Can be constant, simple linear temp dep or multiple linear segment temp function dep.
 
   kt1o = Material(MatLay)%Conductivity
@@ -2187,7 +3191,199 @@ SUBROUTINE IntInterfaceNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld
           Cp2 = MAX(Cpo2,(Enth2New -Enth2Old)/(TDT(I)-TD(I)))
         END IF
       ENDIF
+!VE START
+            IF(Material(MatLay)%DeltaHS <=0 .AND. Material(MatLay2)%DeltaHS>0) THEN
+                
+                TempTlowPCM            =    Material(MatLay)%TempLowPCM        ! Temperature at which melting process starts
+                TempThighPCM        =    Material(MatLay)%TempHighPCM     ! Temperature at which melting process ends
+                TempTlowPCM2        =    Material(MatLay2)%TempLowPCM        ! Temperature at which melting process starts
+                TempThighPCM2        =    Material(MatLay2)%TempHighPCM     ! Temperature at which melting process ends
+                
+                TempTlowPCF            =    Material(MatLay)%TempLowPCF        ! Temperature at which freezing process starts
+                TempThighPCF        =    Material(MatLay)%TempHighPCF     ! Temperature at which freezing process ends
+                TempTlowPCF2        =    Material(MatLay2)%TempLowPCF        ! Temperature at which freezing process starts
+                TempThighPCF2        =    Material(MatLay2)%TempHighPCF     ! Temperature at which freezing process ends
+                         
+                IF (PhaseChangeDeltaT(I)<0) THEN
+                    IF(TDT(I)<TempTlowPCM2) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcM2
+                        Tau1 = Material(MatLay2)%Tau1
+                        Tau2 = Material(MatLay2)%Tau2
+                        DeltaH = Material(MatLay2)%DeltaHF                 
+            
+                    ELSE IF(TDT(I)>=TempTlowPCM2 .AND. TDT(I)<=TempThighPCM2 )THEN
+                       PhaseChangeState(I)=-1
+                        Tc = TcM2
+                        Tau1 = Material(MatLay2)%Tau1
+                        Tau2 = Material(MatLay2)%Tau2
+                        DeltaH = Material(MatLay2)%DeltaHF
+                        
+                        IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                            (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+                    ELSE IF(TDT(I)>TempTHighPCM2) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcM2
+                        Tau1 = Material(MatLay2)%Tau1
+                        Tau2 = Material(MatLay2)%Tau2
+                        DeltaH = Material(MatLay2)%DeltaHF                        
+                    END IF    
 
+                 ELSE IF(PhaseChangeDeltaT(I)>0) THEN
+                    IF (TDT(I)<TempTLowPCF2) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcF2
+                        Tau1 = Material(MatLay2)%Tau1Prime
+                        Tau2 = Material(MatLay2)%Tau2Prime
+                        DeltaH = Material(MatLay2)%DeltaHS
+                                
+                    ELSE IF (TDT(I)>=TempTlowPCF2 .AND. TDT(I)<=TempThighPCF2) THEN
+                       PhaseChangeState(I)=1
+                        Tc = TcF2
+                        Tau1 = Material(MatLay2)%Tau1Prime
+                        Tau2 = Material(MatLay2)%Tau2Prime
+                        DeltaH = Material(MatLay2)%DeltaHS
+                        
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1))THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+
+                    ELSE IF (TDT(I)>TempThighPCF2) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcF2
+                        Tau1 = Material(MatLay2)%Tau1Prime
+                        Tau2 = Material(MatLay2)%Tau2Prime
+                        DeltaH = Material(MatLay2)%DeltaHS
+                    END IF
+                 END IF
+                    
+				IF (HysteresisFlag == 1) THEN 
+                    IF(PhaseChangeTransition(I) == 0)THEN
+                        Enth2Old = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)                    
+                        Enth2New = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                        
+                    ELSE IF(PhaseChangeTransition(I) ==1) THEN     
+                          IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                        
+                             
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                            EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                        !------------------------------------------------------------------------------------------------------------
+                            IF (EnthNew(I) < EnthRev(I) .AND. EnthNew(I) >= EnthalpyF(I) .AND. TDT(I) <= TD(I)) THEN
+                               PhaseChangeState(I) = 1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                         !---------------DONOT CHANGE TO ENTHREV----------------!
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition*  TD(I))))  
+                            !------------------------------------------------------------------!
+                            ELSE IF (EnthNew(I) < EnthalpyF(I).AND. TDT(I) > Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition*  Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I) .AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            END IF
+                         !--------------------------------------------------------------------------------------------------------------   
+                        ELSE IF (PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 0) THEN   
+                            
+                            IF(TDT(I) < Tr(I)) THEN
+                               Tc = TcM2
+                               Tau1 = Tau12M
+                               Tau2 = Tau22M
+                               DeltaH = DeltaH2M
+                            ELSE IF(TDT(I) > Tr(I)) THEN
+                               Tc = TcF2
+                               Tau1 = Tau12F
+                               Tau2 = Tau22F
+                               DeltaH = DeltaH2F
+                            END IF
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (TDT(I) < Tr(I).AND. EnthNew(I) > EnthalpyF(I)) THEN
+                               PhaseChangeState(I) = 1                    
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. (TDT(I)<TD(I) .OR. TDT(I)>TD(I))) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I).AND. EnthNew(I) > EnthOld(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+                        !-----------------------------------------------------------------------------------------------------------------    
+                        ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==2) THEN                        
+                            
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)             
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+
+                            IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            END IF
+                        !--------------------------------------------------------------------------------------------------------                                  
+                        ELSE IF(PhaseChangeStateOld(I) == -1 .AND.PhaseChangeState(I) == 0) THEN                        
+                            
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (EnthNew(I) < EnthOld(I) .AND. TDT(I) < TD(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I))))
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. TDT(I) <TD(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) >= EnthalpyF(I).AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+ !----------------------------------------------------------------------------------------------------------------------------------                                          
+                        ELSE IF(PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 1) THEN                        
+                            
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                        
+                        END IF 
+                        Enth2New = EnthNew(I)
+                    END IF  
+                END IF  
+             
+                IF(PhaseChangeTransition(I)==0) THEN
+                    
+                    IF (Enth2New==Enth2Old)  THEN
+                        Cp2=CpOld2(I)
+                    ELSE
+                        Cp2 = SpecHeat(I, TD(I), TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM, EnthOld(I), EnthNew(I))            
+                    END IF
+                    
+                ELSE IF(PhaseChangeTransition(I)==1) THEN
+                    Cp2 = SpecHeatTransition2
+                END IF
+
+
+                EnthNew(I) = Enth2New  !  This node really doesn't have an enthalpy, this gives it a value
+        
+                Cp2_node(I)=Cp2
+
+            ELSE    ! Regular Material
+                Cp2 = Cpo2
+                Cp2_node=Cp2
+            END IF 
+!VE END
          ! R layer first, then PCM or regular layer.
       SELECT CASE (CondFDSchemeType)
         CASE (CrankNicholsonSecondOrder)
@@ -2229,6 +3425,180 @@ SUBROUTINE IntInterfaceNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld
         END IF
 
       ENDIF
+!VE START
+            IF( Material(MatLay)%DeltaHS >0 .AND. Material(MatLay2)%DeltaHS<=0) THEN         
+                TempTlowPCM            =    Material(MatLay)%TempLowPCM        ! Temperature at which Phase Change process starts
+                TempThighPCM        =    Material(MatLay)%TempHighPCM     ! Temperature at which Phase Change process ends           
+                TempTlowPCF            =    Material(MatLay)%TempLowPCF        ! Temperature at which Phase Change process starts
+                TempThighPCF        =    Material(MatLay)%TempHighPCF     ! Temperature at which Phase Change process ends   
+                IF (PhaseChangeDeltaT(I)<0) THEN
+                    IF(TDT(I)<TempTlowPCM) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                           
+                    ELSE IF(TDT(I)>=TempTlowPCM .AND. TDT(I)<=TempThighPCM )THEN
+                       PhaseChangeState(I)=-1
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                    
+                        IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                            (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+                    ELSE IF(TDT(I)>TempTHighPCM) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                        
+                    END IF    
+                 ELSE IF(PhaseChangeDeltaT(I)>0) THEN
+                    IF (TDT(I)<TempTLowPCF) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS                               
+                    ELSE IF (TDT(I)>=TempTlowPCF .AND. TDT(I)<=TempThighPCF) THEN
+                       PhaseChangeState(I)=1
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS                       
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1))THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+                    ELSE IF (TDT(I)>TempThighPCF) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                    END IF
+                 END IF              
+                IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                    PhaseChangeTransition(I) =1
+                   PhaseChangeState(I)=0
+                ELSE IF(PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I)==0 )THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE 
+                    PhaseChangeTransition(I) = 0
+                END IF              
+				IF (HysteresisFlag == 1) THEN 
+                    IF(PhaseChangeTransition(I) == 0)THEN
+                        EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                    
+                        EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                       
+                    ELSE IF(PhaseChangeTransition(I) ==1) THEN     
+                          IF(PhaseChangeStateOld(I) == 1.AND.PhaseChangeState(I) == 0) THEN                                                    
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                        !------------------------------------------------------------------------------------------------------------
+                            IF (EnthNew(I) < EnthRev(I) .AND. EnthNew(I) >= EnthalpyF(I) .AND. TDT(I) <= TD(I)) THEN
+                               PhaseChangeState(I) = 1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                         !---------------DONOT CHANGE TO ENTHREV----------------!
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition*  TD(I))))  
+                            !------------------------------------------------------------------!
+                            ELSE IF (EnthNew(I) < EnthalpyF(I).AND. TDT(I) > Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition*  Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I) .AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            END IF
+                         !--------------------------------------------------------------------------------------------------------------   
+                        ELSE IF (PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 0) THEN                            
+                            IF(TDT(I) < Tr(I)) THEN
+                               Tc = TcM
+                               Tau1 = Tau1M
+                               Tau2 = Tau2M
+                               DeltaH = DeltaHM
+                            ELSE IF(TDT(I) > Tr(I)) THEN
+                               Tc = TcF
+                               Tau1 = Tau1F
+                               Tau2 = Tau2F
+                               DeltaH = DeltaHF
+                            END IF
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)                           
+                            IF (TDT(I) < Tr(I).AND. EnthNew(I) > EnthalpyF(I)) THEN
+                               PhaseChangeState(I) = 1                    
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. (TDT(I)<TD(I) .OR. TDT(I)>TD(I))) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I).AND. EnthNew(I) > EnthOld(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+                        !-----------------------------------------------------------------------------------------------------------------    
+                        ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1) THEN                                                   
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)             
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            END IF
+                        !--------------------------------------------------------------------------------------------------------                                  
+                        ELSE IF(PhaseChangeStateOld(I) == -1 .AND.PhaseChangeState(I) == 0) THEN                                               
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)                         
+                            IF (EnthNew(I) < EnthOld(I) .AND. TDT(I) < TD(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I))))
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. TDT(I) <TD(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) >= EnthalpyF(I).AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+ !----------------------------------------------------------------------------------------------------------------------------------                                          
+                        ELSE IF(PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 1) THEN                                                  
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))                       
+                        END IF 
+                    END IF  
+                END IF               
+                IF(PhaseChangeTransition(I)==0) THEN                 
+                    IF (EnthNew(I)==EnthOld(I))  THEN
+                        Cp1=CpOld1(I)
+                    ELSE
+                        Cp1 = SpecHeat(I, TD(I), TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM, EnthOld(I), EnthNew(I))            
+                    END IF                  
+                ELSE IF(PhaseChangeTransition(I)==1) THEN
+                    Cp1 = SpecHeatTransition
+                END IF
+                Cp1_node(I)=Cp1
+            ELSE    ! Regular Material
+                Cp1 = Cpo1
+                Cp1_node=Cp1
+            END IF 
+!VE END
 
       SELECT CASE (CondFDSchemeType)
 
@@ -2308,6 +3678,798 @@ SUBROUTINE IntInterfaceNodeEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld
 
         Cp1 = Cpo1
 
+      END If  ! Phase Change material check
+
+!VE START 
+       IF(Material(MatLay)%DeltaHS>0 .AND. Material(MatLay2)%DeltaHS>0) THEN
+                
+                TempTlowPCM            =    Material(MatLay)%TempLowPCM        ! Temperature at which Phase Change process starts
+                TempThighPCM        =    Material(MatLay)%TempHighPCM     ! Temperature at which Phase Change process ends
+                TempTlowPCM2        =    Material(MatLay2)%TempLowPCM        ! Temperature at which Phase Change process starts
+                TempThighPCM2        =    Material(MatLay2)%TempHighPCM     ! Temperature at which Phase Change process ends
+                
+                TempTlowPCF            =    Material(MatLay)%TempLowPCF        ! Temperature at which Phase Change process starts
+                TempThighPCF        =    Material(MatLay)%TempHighPCF     ! Temperature at which Phase Change process ends
+                TempTlowPCF2        =    Material(MatLay2)%TempLowPCF        ! Temperature at which Phase Change process starts
+                TempThighPCF2        =    Material(MatLay2)%TempHighPCF     ! Temperature at which Phase Change process ends
+            
+            IF(Material(MatLay)%DeltaHS>0) THEN      
+                IF (PhaseChangeDeltaT(I)<0) THEN
+                    IF(TDT(I)<TempTlowPCM) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                 
+            
+                    ELSE IF(TDT(I)>=TempTlowPCM .AND. TDT(I)<=TempThighPCM )THEN
+                       PhaseChangeState(I)=-1
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF
+                        
+                        IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                            (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+                    ELSE IF(TDT(I)>TempTHighPCM) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                        
+                    END IF    
+
+                 ELSE IF(PhaseChangeDeltaT(I)>0) THEN
+                    IF (TDT(I)<TempTLowPCF) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                                
+                    ELSE IF (TDT(I)>=TempTlowPCF .AND. TDT(I)<=TempThighPCF) THEN
+                       PhaseChangeState(I)=-1
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                        
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1))THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+
+                    ELSE IF (TDT(I)>TempThighPCF) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                    END IF
+                 END IF
+                 
+                IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                    PhaseChangeTransition(I) =1
+                   PhaseChangeState(I)=0
+                ELSE IF(PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I)==0 )THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                    PhaseChangeTransition(I) =1
+
+                ELSE 
+                    PhaseChangeTransition(I) = 0
+                END IF
+                
+				IF (HysteresisFlag == 1) THEN   
+                    IF(PhaseChangeTransition(I) == 0)THEN
+                        EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                    
+                        EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                        
+                    ELSE IF(PhaseChangeTransition(I) ==1) THEN     
+                          IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                        
+                             
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                        !------------------------------------------------------------------------------------------------------------
+                            IF (EnthNew(I) < EnthRev(I) .AND. EnthNew(I) >= EnthalpyF(I) .AND. TDT(I) <= TD(I)) THEN
+                               PhaseChangeState(I) = 1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                         !---------------DONOT CHANGE TO ENTHREV----------------!
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition*  TD(I))))  
+                            !------------------------------------------------------------------!
+                            ELSE IF (EnthNew(I) < EnthalpyF(I).AND. TDT(I) > Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition*  Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I) .AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            END IF
+                         !--------------------------------------------------------------------------------------------------------------   
+                        ELSE IF (PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 0) THEN   
+                            
+                            IF(TDT(I) < Tr(I)) THEN
+                               Tc = TcM
+                               Tau1 = Tau1M
+                               Tau2 = Tau2M
+                               DeltaH = DeltaHM
+                            ELSE IF(TDT(I) > Tr(I)) THEN
+                               Tc = TcF
+                               Tau1 = Tau1F
+                               Tau2 = Tau2F
+                               DeltaH = DeltaHF
+                            END IF
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (TDT(I) < Tr(I).AND. EnthNew(I) > EnthalpyF(I)) THEN
+                               PhaseChangeState(I) = 1                    
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. (TDT(I)<TD(I) .OR. TDT(I)>TD(I))) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I).AND. EnthNew(I) > EnthOld(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+                        !-----------------------------------------------------------------------------------------------------------------    
+                        ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==2) THEN                        
+                            
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)             
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+
+                            IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            END IF
+                        !--------------------------------------------------------------------------------------------------------                                  
+                        ELSE IF(PhaseChangeStateOld(I) == -1 .AND.PhaseChangeState(I) == 0) THEN                        
+                            
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (EnthNew(I) < EnthOld(I) .AND. TDT(I) < TD(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I))))
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. TDT(I) <TD(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) >= EnthalpyF(I).AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+ !----------------------------------------------------------------------------------------------------------------------------------                                          
+                        ELSE IF(PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 1) THEN                        
+                            
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                        
+                        END IF 
+                    END IF  
+                END IF
+                
+                Enth1New = EnthNew(I)
+                        
+                IF(PhaseChangeTransition(I) == 0 ) THEN
+                    IF (Enth1New==Enth1Old)  Then
+                        Cp1=CpOld1(I)
+                    Else
+                        Cp1 = SpecHeat(I, TD(I), TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM, Enth1Old, Enth1New)
+                    End IF
+                
+                ELSE IF (PhaseChangeTransition(I) ==1) THEN                
+                    Cp1 = SpecHeatTransition
+                END IF
+            END IF
+            
+            IF(Material(MatLay2)%DeltaHS>0) THEN
+                
+                IF (PhaseChangeDeltaT(I)<0) THEN
+                    IF(TDT(I)<TempTlowPCM2) THEN
+                       PhaseChangeState(I)=2
+                        Tc2 = TcM2
+                        Tau12 = Material(MatLay2)%Tau1
+                        Tau22 = Material(MatLay2)%Tau2
+                        DeltaH2 = Material(MatLay2)%DeltaHF                 
+            
+                    ELSE IF(TDT(I)>=TempTlowPCM2 .AND. TDT(I)<=TempThighPCM2 )THEN
+                       PhaseChangeState(I)=-1
+                        Tc2 = TcM2
+                        Tau12 = Material(MatLay2)%Tau1
+                        Tau22 = Material(MatLay2)%Tau2
+                        DeltaH2 = Material(MatLay2)%DeltaHF
+                        
+                        IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                            (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+                    ELSE IF(TDT(I)>TempTHighPCM2) THEN
+                       PhaseChangeState(I)=-2
+                        Tc2 = TcM2
+                        Tau12 = Material(MatLay2)%Tau1
+                        Tau22 = Material(MatLay2)%Tau2
+                        DeltaH2 = Material(MatLay2)%DeltaHF                        
+                    END IF    
+
+                 ELSE IF(PhaseChangeDeltaT(I)>0) THEN
+                    IF (TDT(I)<TempTLowPCF2) THEN
+                       PhaseChangeState(I)=2
+                        Tc2 = TcF2
+                        Tau12 = Material(MatLay2)%Tau1Prime
+                        Tau22 = Material(MatLay2)%Tau2Prime
+                        DeltaH2 = Material(MatLay2)%DeltaHS
+                                
+                    ELSE IF (TDT(I)>=TempTlowPCF2 .AND. TDT(I)<=TempThighPCF2) THEN
+                       PhaseChangeState(I)=1
+                        Tc2 = TcF2
+                        Tau12 = Material(MatLay2)%Tau1Prime
+                        Tau22 = Material(MatLay2)%Tau2Prime
+                        DeltaH2 = Material(MatLay2)%DeltaHS
+                        
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1))THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+
+                    ELSE IF (TDT(I)>TempThighPCF2) THEN
+                       PhaseChangeState(I)=-2
+                        Tc2 = TcF2
+                        Tau12 = Material(MatLay2)%Tau1Prime
+                        Tau22 = Material(MatLay2)%Tau2Prime
+                        DeltaH2 = Material(MatLay2)%DeltaHS
+                    END IF
+                 END IF    
+                 
+                IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                    PhaseChangeTransition(I) =1
+                   PhaseChangeState(I)=0
+                ELSE IF(PhaseChangeStateOld(I)==1.AND.PhaseChangeState(I)==0 )THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                    PhaseChangeTransition(I) =1
+
+                ELSE 
+                    PhaseChangeTransition(I) = 0
+                END IF
+                 
+				IF (HysteresisFlag == 1) THEN     
+                    IF(PhaseChangeTransition(I) == 0)THEN
+                        EnthOld(I) = SpecEnthalpy(I,TD(I), Tc2, Tau12, Tau22, DeltaH2, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)                    
+                        EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc2, Tau12, Tau22, DeltaH2, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                        
+                    ELSE IF(PhaseChangeTransition(I) ==1) THEN     
+                          IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                        
+                             
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                            EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                        !------------------------------------------------------------------------------------------------------------
+                            IF (EnthNew(I) < EnthRev(I) .AND. EnthNew(I) >= EnthalpyF(I) .AND. TDT(I) <= TD(I)) THEN
+                               PhaseChangeState(I) = 1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                         !---------------DONOT CHANGE TO ENTHREV----------------!
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2*  TD(I))))  
+                            !------------------------------------------------------------------!
+                            ELSE IF (EnthNew(I) < EnthalpyF(I).AND. TDT(I) > Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2*  Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I) .AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            END IF
+                         !--------------------------------------------------------------------------------------------------------------   
+                        ELSE IF (PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 0) THEN   
+                            
+                            IF(TDT(I) < Tr(I)) THEN
+                               Tc = TcM2
+                               Tau1 = Tau12M
+                               Tau2 = Tau22M
+                               DeltaH = DeltaH2M
+                            ELSE IF(TDT(I) > Tr(I)) THEN
+                               Tc = TcF2
+                               Tau1 = Tau12F
+                               Tau2 = Tau22F
+                               DeltaH = DeltaH2F
+                            END IF
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                           
+                            IF (TDT(I) < Tr(I).AND. EnthNew(I) > EnthalpyF(I)) THEN
+                               PhaseChangeState(I) = 1                    
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. (TDT(I)<TD(I) .OR. TDT(I)>TD(I))) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I).AND. EnthNew(I) > EnthOld(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I))))
+                            END IF
+                        !-----------------------------------------------------------------------------------------------------------------    
+                        ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1) THEN                        
+                            
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF2, Tau12F, Tau2F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)             
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+
+                            IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            END IF
+                        !--------------------------------------------------------------------------------------------------------                                  
+                        ELSE IF(PhaseChangeStateOld(I) == -1 .AND.PhaseChangeState(I) == 0) THEN                        
+                            
+                            EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                           
+                            IF (EnthNew(I) < EnthOld(I) .AND. TDT(I) < TD(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2* TD(I))))
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. TDT(I) <TD(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            ELSE IF (EnthNew(I) >= EnthalpyF(I).AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I))))
+                            END IF
+ !----------------------------------------------------------------------------------------------------------------------------------                                          
+                        ELSE IF(PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 1) THEN                        
+                            
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            
+                        END IF 
+                    END IF  
+                END IF
+                
+             Enth2New = EnthNew(I)  
+             
+                IF(PhaseChangeTransition(I) == 0 ) THEN    
+                    IF (Enth2New==Enth2Old)  Then
+                        Cp2=CpOld2(I)
+                    Else
+                        Cp2 = SpecHeat(I, TD(I), TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM2, SpecHeatLiquidPCM2, Enth2Old, Enth2New)
+                    End IF
+                ELSE IF (PhaseChangeTransition(I) ==1) THEN
+                    Cp2 = SpecHeatTransition2
+                END IF
+                
+            END IF
+           
+
+                Cp1_node(I)=Cp1
+                Cp2_node(I)=Cp2
+!----------------------------------------------------------------------------------------------------------------------
+
+            ELSE IF(MAterial(MatLay)%DeltaHS > 0 .AND. Material(MatLay2)%DeltaHS<=0) THEN
+                
+                TempTlowPCM            =    Material(MatLay)%TempLowPCM        ! Temperature at which Phase Change process starts
+                TempThighPCM        =    Material(MatLay)%TempHighPCM     ! Temperature at which Phase Change process ends           
+                TempTlowPCF            =    Material(MatLay)%TempLowPCF        ! Temperature at which Phase Change process starts
+                TempThighPCF        =    Material(MatLay)%TempHighPCF     ! Temperature at which Phase Change process ends 
+    
+                IF (PhaseChangeDeltaT(I)<0) THEN
+                    IF(TDT(I)<TempTlowPCM) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                 
+            
+                    ELSE IF(TDT(I)>=TempTlowPCM .AND. TDT(I)<=TempThighPCM )THEN
+                       PhaseChangeState(I)=-1
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF
+                        
+                        IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                            (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+                    ELSE IF(TDT(I)>TempTHighPCM) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                        
+                    END IF    
+
+                 ELSE IF(PhaseChangeDeltaT(I)>0) THEN
+                    IF (TDT(I)<TempTLowPCF) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                                
+                    ELSE IF (TDT(I)>=TempTlowPCF .AND. TDT(I)<=TempThighPCF) THEN
+                       PhaseChangeState(I)=1
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                        
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1))THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+
+                    ELSE IF (TDT(I)>TempThighPCF) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcF
+                        Tau1 = Material(MatLay)%Tau1Prime
+                        Tau2 = Material(MatLay)%Tau2Prime
+                        DeltaH = Material(MatLay)%DeltaHS
+                    END IF
+                 END IF
+                
+                IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==2)THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                    PhaseChangeTransition(I) =1
+                   PhaseChangeState(I)=0
+                ELSE IF(PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I)==0 )THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                    PhaseChangeTransition(I) =1
+					
+                ELSE 
+                    PhaseChangeTransition(I) = 0
+                END IF
+                
+				IF (HysteresisFlag == 1) THEN     
+                    IF(PhaseChangeTransition(I) == 0)THEN
+                        EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                    
+                        EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                        
+                    ELSE IF(PhaseChangeTransition(I) ==1) THEN     
+                          IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                        
+                             
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                        !------------------------------------------------------------------------------------------------------------
+                            IF (EnthNew(I) < EnthRev(I) .AND. EnthNew(I) >= EnthalpyF(I) .AND. TDT(I) <= TD(I)) THEN
+                               PhaseChangeState(I) = 1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                         !---------------DONOT CHANGE TO ENTHREV----------------!
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition*  TD(I))))  
+                            !------------------------------------------------------------------!
+                            ELSE IF (EnthNew(I) < EnthalpyF(I).AND. TDT(I) > Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition*  Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I) .AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            END IF
+                         !--------------------------------------------------------------------------------------------------------------   
+                        ELSE IF (PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 0) THEN   
+                            
+                            IF(TDT(I) < Tr(I)) THEN
+                               Tc = TcM
+                               Tau1 = Tau1M
+                               Tau2 = Tau2M
+                               DeltaH = DeltaHM
+                            ELSE IF(TDT(I) > Tr(I)) THEN
+                               Tc = TcF
+                               Tau1 = Tau1F
+                               Tau2 = Tau2F
+                               DeltaH = DeltaHF
+                            END IF
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (TDT(I) < Tr(I).AND. EnthNew(I) > EnthalpyF(I)) THEN
+                               PhaseChangeState(I) = 1                    
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. (TDT(I)<TD(I) .OR. TDT(I)>TD(I))) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I).AND. EnthNew(I) > EnthOld(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+                        !-----------------------------------------------------------------------------------------------------------------    
+                        ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1) THEN                        
+                            
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)             
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+
+                            IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            END IF
+                        !--------------------------------------------------------------------------------------------------------                                  
+                        ELSE IF(PhaseChangeStateOld(I) == -1 .AND.PhaseChangeState(I) == 0) THEN                        
+                            
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (EnthNew(I) < EnthOld(I) .AND. TDT(I) < TD(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I))))
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. TDT(I) <TD(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) >= EnthalpyF(I).AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+ !----------------------------------------------------------------------------------------------------------------------------------                                          
+                        ELSE IF(PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 1) THEN                        
+                            
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+
+                        
+                        END IF 
+                    END IF  
+                END IF
+
+                IF(PhaseChangeTransition(I)==0) THEN
+                    
+                    IF (EnthNew(I)==EnthOld(I))  THEN
+                        Cp1=CpOld1(I)
+                    ELSE
+                        Cp1 = SpecHeat(I, TD(I), TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM, EnthOld(I), EnthNew(I))            
+                    END IF
+                    
+                ELSE IF(PhaseChangeTransition(I)==1) THEN
+                    Cp1 = SpecHeatTransition
+                END IF
+
+                Cp1_node(I) = Cp1
+                Cp2 = Cpo2
+                Cp2_node(I) = Cp2
+    
+            
+            ELSE IF(Material(Matlay)%DeltaHS<=0 .AND. Material(MatLay2)%DeltaHS>0) THEN
+                TempTlowPCM2            =    Material(MatLay2)%TempLowPCM        ! Temperature at which Phase Change process starts
+                TempThighPCM2            =    Material(MatLay2)%TempHighPCM     ! Temperature at which Phase Change process ends           
+                TempTlowPCF2            =    Material(MatLay2)%TempLowPCF        ! Temperature at which Phase Change process starts
+                TempThighPCF2            =    Material(MatLay2)%TempHighPCF     ! Temperature at which Phase Change process ends 
+
+                IF (PhaseChangeDeltaT(I)<0) THEN
+                    IF(TDT(I)<TempTlowPCM2) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcM2
+                        Tau1 = Material(MatLay2)%Tau1
+                        Tau2 = Material(MatLay2)%Tau2
+                        DeltaH = Material(MatLay2)%DeltaHF                 
+            
+                    ELSE IF(TDT(I)>=TempTlowPCM2 .AND. TDT(I)<=TempThighPCM2 )THEN
+                       PhaseChangeState(I)=-1
+                        Tc = TcM2
+                        Tau1 = Material(MatLay2)%Tau1
+                        Tau2 = Material(MatLay2)%Tau2
+                        DeltaH = Material(MatLay2)%DeltaHF
+                        
+                        IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                            (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+                    ELSE IF(TDT(I)>TempTHighPCM2) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcM2
+                        Tau1 = Material(MatLay2)%Tau1
+                        Tau2 = Material(MatLay2)%Tau2
+                        DeltaH = Material(MatLay2)%DeltaHF                        
+                    END IF    
+
+                 ELSE IF(PhaseChangeDeltaT(I)>0) THEN
+                    IF (TDT(I)<TempTLowPCF2) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcF2
+                        Tau1 = Material(MatLay2)%Tau1Prime
+                        Tau2 = Material(MatLay2)%Tau2Prime
+                        DeltaH = Material(MatLay2)%DeltaHS
+                                
+                    ELSE IF (TDT(I)>=TempTlowPCF2 .AND. TDT(I)<=TempThighPCF2) THEN
+                       PhaseChangeState(I)=1
+                        Tc = TcF2
+                        Tau1 = Material(MatLay2)%Tau1Prime
+                        Tau2 = Material(MatLay2)%Tau2Prime
+                        DeltaH = Material(MatLay2)%DeltaHS
+                        
+                        IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                           (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1))THEN
+                           PhaseChangeState(I) = 0
+                        END IF
+
+                    ELSE IF (TDT(I)>TempThighPCF2) THEN
+                       PhaseChangeState(I)=-2
+                        Tc = TcF2
+                        Tau1 = Material(MatLay2)%Tau1Prime
+                        Tau2 = Material(MatLay2)%Tau2Prime
+                        DeltaH = Material(MatLay2)%DeltaHS
+                    END IF
+                 END IF
+                
+                IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                    PhaseChangeTransition(I) =1
+                   PhaseChangeState(I)=0
+                ELSE IF(PhaseChangeStateOld(I)==1.AND.PhaseChangeState(I)==0 )THEN    
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
+                    PhaseChangeTransition(I) =1
+                ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                    PhaseChangeTransition(I) =1
+
+                ELSE 
+                    PhaseChangeTransition(I) = 0
+                END IF
+                
+				IF (HysteresisFlag == 1) THEN     
+                    IF(PhaseChangeTransition(I) == 0)THEN
+                        EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)                    
+                        EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                        
+                    ELSE IF(PhaseChangeTransition(I) ==1) THEN     
+                          IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                        
+                             
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                            EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                        !------------------------------------------------------------------------------------------------------------
+                            IF (EnthNew(I) < EnthRev(I) .AND. EnthNew(I) >= EnthalpyF(I) .AND. TDT(I) <= TD(I)) THEN
+                               PhaseChangeState(I) = 1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                         !---------------DONOT CHANGE TO ENTHREV----------------!
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2*  TD(I))))  
+                            !------------------------------------------------------------------!
+                            ELSE IF (EnthNew(I) < EnthalpyF(I).AND. TDT(I) > Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2*  Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I) .AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            END IF
+                         !--------------------------------------------------------------------------------------------------------------   
+                        ELSE IF (PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 0) THEN   
+                            
+                            IF(TDT(I) < Tr(I)) THEN
+                               Tc = TcM2
+                               Tau1 = Tau12M
+                               Tau2 = Tau22M
+                               DeltaH = DeltaH2M
+                            ELSE IF(TDT(I) > Tr(I)) THEN
+                               Tc = TcF2
+                               Tau1 = Tau12F
+                               Tau2 = Tau22F
+                               DeltaH = DeltaH2F
+                            END IF
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), Tc, Tau2, Tau2, DeltaH, SpecHeatSolidPCM2, SpecHeatLiquidPCM2) 
+                            EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                           
+                            IF (TDT(I) < Tr(I).AND. EnthNew(I) > EnthalpyF(I)) THEN
+                               PhaseChangeState(I) = 1                    
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. (TDT(I)<TD(I) .OR. TDT(I)>TD(I))) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I).AND. EnthNew(I) > EnthOld(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I))))
+                            END IF
+                        !-----------------------------------------------------------------------------------------------------------------    
+                        ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1) THEN                        
+                            
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)             
+                            EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+
+                            IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            END IF
+                        !--------------------------------------------------------------------------------------------------------                                  
+                        ELSE IF(PhaseChangeStateOld(I) == -1 .AND.PhaseChangeState(I) == 0) THEN                        
+                            
+                            EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                           
+                            IF (EnthNew(I) < EnthOld(I) .AND. TDT(I) < TD(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthOld(I) - (SpecHeatTransition2* TD(I))))
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. TDT(I) <TD(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            ELSE IF (EnthNew(I) >= EnthalpyF(I).AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I))))
+                            END IF
+ !----------------------------------------------------------------------------------------------------------------------------------                                          
+                        ELSE IF(PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 1) THEN                        
+                            
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM2, Tau12M, Tau22M, DeltaH2M, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF2, Tau12F, Tau22F, DeltaH2F, SpecHeatSolidPCM2, SpecHeatLiquidPCM2)
+                            EnthNew(I) = ((SpecHeatTransition2* TDT(I)) +(EnthRev(I) - (SpecHeatTransition2* Tr(I)))) 
+                            
+                        
+                        END IF 
+                    END IF  
+                END IF
+
+                IF(PhaseChangeTransition(I)==0) THEN
+                    
+                    IF (EnthNew(I)==EnthOld(I))  THEN
+                        Cp2=CpOld2(I)
+                    ELSE
+                        Cp2 = SpecHeat(I, TD(I), TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM2, SpecHeatLiquidPCM2, EnthOld(I), EnthNew(I))            
+                    END IF
+                    
+                ELSE IF(PhaseChangeTransition(I)==1) THEN
+                    Cp2 = SpecHeatTransition2
+                END IF
+
+                Cp2_node(I) = Cp2    
+                  Cp1 = Cpo1
+                Cp1_node(I) = Cp1
+!VE END
+
       END If  ! Phase change material check
 
       SELECT CASE (CondFDSchemeType)
@@ -2350,14 +4512,18 @@ RETURN
 
 END SUBROUTINE IntInterfaceNodeEqns
 
-
-SUBROUTINE InteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthNew,TDReport)
+!VE START@ CpOld
+SUBROUTINE InteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthNew,TDReport,CpOld, &
+                            PhaseChangeDeltaT,Cp_node,PhaseChangeState,PhaseChangeStateold, &
+                           PhaseChangeStateoldold,Tr, PhaseChangeTransition) 
+!VE END
           ! SUBROUTINE INFORMATION:
           !       AUTHOR         Richard Liesen
           !       DATE WRITTEN   November, 2003
           !       MODIFIED       B. Griffith, P. Tabares, May 2011, add first order fully implicit, bug fixes, cleanup
           !                      November 2011 P. Tabares fixed problems with adiabatic walls/massless walls
           !                      November 2011 P. Tabares fixed problems PCM stability problems
+		  !                      2013-2016, NRGsim Inc., added  Material Property Phase Change Hysteresis Routines.
           !       RE-ENGINEERED  C. O. Pedersen 2006
 
           ! PURPOSE OF THIS SUBROUTINE:
@@ -2389,7 +4555,21 @@ SUBROUTINE InteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
   REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthOld    ! Old Nodal enthalpy
   REAL(r64),DIMENSION(:), INTENT(InOut) :: EnthNew    ! New Nodal enthalpy
   REAL(r64),DIMENSION(:), INTENT(InOut) :: TDreport    ! Temperature value from previous HeatSurfaceHeatManager titeration's value
-
+!VE START
+  REAL(r64) :: Tc
+  REAL(r64) :: DeltaH
+  REAL(r64),Dimension(100)  :: EnthalpyF  
+  REAL(r64),Dimension(100)  :: EnthalpyM 
+  REAL(r64),Dimension(:), Intent(InOut) :: CpOld      ! Old Nodal Specific Heat
+  Real(r64),Dimension(:), Intent(InOut) :: PhaseChangeDeltaT 
+  INTEGER,Dimension(:), Intent(InOut)   :: PhaseChangeTransition 
+  REAL(r64),Dimension(:), Intent(InOut) :: Cp_node      ! Nodal Specific Heat
+  Integer,Dimension(:), Intent(InOut)   :: PhaseChangeState
+  Integer,Dimension(:), Intent(InOut)   :: PhaseChangeStateold
+  Integer,Dimension(:), Intent(InOut)   :: PhaseChangeStateoldold
+  REAL(r64),Dimension(:), Intent(InOut) :: Tr ! PhaseChangeTemperatureReverse
+  REAL(r64), Dimension(100) :: EnthRev
+!VE END
           ! SUBROUTINE PARAMETER DEFINITIONS:
           ! na
 
@@ -2430,7 +4610,25 @@ SUBROUTINE InteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
   REAL(r64)  :: SigmaRLoc
   REAL(r64)  :: SigmaCLoc
   REAL(r64)  :: QNetSurfInside
-
+  !VE START
+    REAL(r64)         :: TempTlowPCM
+    REAL(r64)         :: TempThighPCM
+    REAL(r64)         :: TempTlowPCF
+    REAL(r64)         :: TempThighPCF
+    REAL(r64)         :: SpecHeatSolidPCM
+    REAL(r64)         :: SpecHeatLiquidPCM
+    REAL(r64)         :: SpecHeatTransition
+    !*****************************************************************************
+    ! These are variables that explicitly hold the freezing and melting curve 
+    ! properties and are used  in the transition region only
+    REAL(r64)         :: Tau1M ! Melting region low
+    REAL(r64)         :: Tau2M ! Melting region high
+    REAL(r64)         :: Tau1F ! Freezing region low 
+    REAL(r64)         :: Tau2F ! Freezing region high 
+    REAL(r64)         :: DeltaHM ! Latent heat of Melting
+    REAL(r64)         :: DeltaHF ! Latent heat of Freezing
+    !********************************************************************************
+!VE END  
 
   ConstrNum = Surface(surf)%Construction
   SigmaRLoc = SigmaR(ConstrNum)
@@ -2457,6 +4655,34 @@ SUBROUTINE InteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
   IF (Surface(Surf)%HeatTransferAlgorithm == HeatTransferModel_CondFD) THEN
 
     MatLay = Construct(ConstrNum)%LayerPoint(Lay)
+!VE START 
+    TcM = Material(MatLay)%Tm
+    Tau1 = Material(MatLay)%Tau1
+    Tau2 = Material(MatLay)%Tau2
+    TempTlowPCM       = TcM-Tau1        ! Temperature at which Phase Change process starts
+    TempThighPCM      = TcM+Tau2    ! Temperature at which Phase Change process ends 
+    Material(MatLay)%TempLowPCM = TempTlowPCM            
+    Material(MatLay)%TempHighPCM= TempThighPCM
+        
+    TcF = Material(MatLay)%Tf
+    Tau1F = Material(MatLay)%Tau1Prime
+    Tau2F = Material(MatLay)%Tau2Prime
+    TempTlowPCF       = TcF-Tau1F        ! Temperature at which Phase Change process starts
+    TempThighPCF      = TcF+Tau2F    ! Temperature at which Phase Change process ends         
+    Material(MatLay)%TempLowPCF = TempTlowPCF            
+    Material(MatLay)%TempHighPCF= TempThighPCF
+   
+    SpecHeatSolidPCM  = Material(MatLay)%CpSolid
+    SpecHeatLiquidPCM = Material(MatLay)%CpLiquid
+    SpecHeatTransition = (SpecHeatSolidPCM+SpecHeatLiquidPCM)/2
+    
+    DeltaHM = Material(MatLay)%DeltaHF
+    DeltaHF = Material(MatLay)%DeltaHS
+    Tau1M = Material(MatLay)%Tau1
+    Tau2M = Material(MatLay)%Tau2
+    Tau1F = Material(MatLay)%Tau1Prime
+    Tau2F = Material(MatLay)%Tau2Prime
+ !VE END
      !  Set Thermal Conductivity.  Can be constant, simple linear temp dep or multiple linear segment temp function dep.
     kto = Material(MatLay)%Conductivity   !  20C base conductivity
     kt1 = MaterialFD(MatLay)%tk1  !  linear coefficient (normally zero)
@@ -2520,6 +4746,193 @@ SUBROUTINE InteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
           Cp = MAX(Cpo,(EnthNew(I) -EnthOld(I))/(TDT(I)-TD(I)))
         END IF
 
+END IF
+!VE START
+           IF(Material(Matlay)%DeltaHS >0) THEN                                              
+				
+                TempTlowPCM            =    Material(MatLay)%TempLowPCM        ! Temperature at which Phase Change process starts
+                TempThighPCM        =    Material(MatLay)%TempHighPCM     ! Temperature at which Phase Change process ends           
+                TempTlowPCF            =    Material(MatLay)%TempLowPCF        ! Temperature at which Phase Change process starts
+                TempThighPCF        =    Material(MatLay)%TempHighPCF     ! Temperature at which Phase Change process ends 
+
+                IF (PhaseChangeDeltaT(I)<0) THEN
+                    IF(TDT(I)<TempTlowPCM) THEN
+                       PhaseChangeState(I)=2
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF                 
+            
+                    ELSE IF(TDT(I)>=TempTlowPCM .AND. TDT(I)<=TempThighPCM )THEN
+                       PhaseChangeState(I)=-1
+                        Tc = TcM
+                        Tau1 = Material(MatLay)%Tau1
+                        Tau2 = Material(MatLay)%Tau2
+                        DeltaH = Material(MatLay)%DeltaHF
+                        
+                         IF((PhaseChangeStateOld(I)==1 .AND.PhaseChangeState(I) == -1) .OR. &
+                             (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == -1)) THEN
+                            PhaseChangeState(I) = 0
+                         END IF
+                    ELSE IF(TDT(I)>TempTHighPCM) THEN
+                       PhaseChangeState(I)=-2
+                       Tc = TcM
+                       Tau1 = Material(MatLay)%Tau1
+                       Tau2 = Material(MatLay)%Tau2
+                       DeltaH = Material(MatLay)%DeltaHF                        
+                    END IF    
+
+                 ELSE IF(PhaseChangeDeltaT(I)>0) THEN
+                    IF (TDT(I)<TempTLowPCF) THEN
+                       PhaseChangeState(I)=2
+                       Tc = TcF
+                       Tau1 = Material(MatLay)%Tau1Prime
+                       Tau2 = Material(MatLay)%Tau2Prime
+                       DeltaH = Material(MatLay)%DeltaHS
+                                
+                    ELSE IF (TDT(I)>=TempTlowPCF .AND. TDT(I)<=TempThighPCF) THEN
+                       PhaseChangeState(I)=1
+                       Tc = TcF
+                       Tau1 = Material(MatLay)%Tau1Prime
+                       Tau2 = Material(MatLay)%Tau2Prime
+                       DeltaH = Material(MatLay)%DeltaHS
+                       IF((PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I) == 1) .OR. &
+                          (PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I) == 1)) THEN 
+                          PhaseChangeState(I) = 0
+                       END IF
+                    ELSE IF (TDT(I)>TempThighPCF) THEN
+                       PhaseChangeState(I)=-2
+                       Tc = TcF
+                       Tau1 = Material(MatLay)%Tau1Prime
+                       Tau2 = Material(MatLay)%Tau2Prime
+                       DeltaH = Material(MatLay)%DeltaHS
+                    END IF
+                 END IF
+                 
+                 IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1)THEN    
+                    PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==1)THEN  
+                    PhaseChangeTransition(I) =1
+                    PhaseChangeState(I)=0
+                 ELSE IF(PhaseChangeStateOld(I)==1.AND.PhaseChangeState(I)==0 )THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==-1 .AND.PhaseChangeState(I)==0)THEN   
+                     PhaseChangeTransition(I) =1
+                 ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==0)THEN    
+                     PhaseChangeTransition(I) =1
+                 ELSE 
+                     PhaseChangeTransition(I) = 0
+                 END IF                   
+                
+				IF (HysteresisFlag == 1) THEN    
+                    IF(PhaseChangeTransition(I) == 0)THEN
+                        EnthOld(I) = SpecEnthalpy(I,TD(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM)                    
+                        EnthNew(I) = SpecEnthalpy(I,TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                        
+                    ELSE IF(PhaseChangeTransition(I) ==1) THEN     
+                         IF(PhaseChangeStateOld(I) == 1 .AND.PhaseChangeState(I) == 0) THEN                        
+                             
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                        !------------------------------------------------------------------------------------------------------------
+                            IF (EnthNew(I) < EnthRev(I) .AND. EnthNew(I) >= EnthalpyF(I) .AND. TDT(I) <= TD(I)) THEN
+                               PhaseChangeState(I) = 1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                         !---------------DONOT CHANGE TO ENTHREV----------------!
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition*  TD(I))))  
+                            !------------------------------------------------------------------!
+                            ELSE IF (EnthNew(I) < EnthalpyF(I).AND. TDT(I) > Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition*  Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I) .AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            END IF
+                         !--------------------------------------------------------------------------------------------------------------   
+                        ELSE IF (PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 0) THEN   
+                            
+                            IF(TDT(I) < Tr(I)) THEN
+                               Tc = TcM
+                               Tau1 = Tau1M
+                               Tau2 = Tau2M
+                               DeltaH = DeltaHM
+                            ELSE IF(TDT(I) > Tr(I)) THEN
+                               Tc = TcF
+                               Tau1 = Tau1F
+                               Tau2 = Tau2F
+                               DeltaH = DeltaHF
+                            END IF
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM) 
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (TDT(I) < Tr(I).AND. EnthNew(I) > EnthalpyF(I)) THEN
+                               PhaseChangeState(I) = 1                    
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. (TDT(I)<TD(I) .OR. TDT(I)>TD(I))) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I).AND. EnthNew(I) > EnthOld(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+                        !-----------------------------------------------------------------------------------------------------------------    
+                        ELSE IF(PhaseChangeStateOld(I)==0 .AND.PhaseChangeState(I)==-1) THEN                        
+                            
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)             
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+
+                            IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) <= EnthalpyM(I).AND. TDT(I) >= TD(I)) THEN
+                               PhaseChangeState(I)= -1
+                                EnthNew(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            END IF
+                        !--------------------------------------------------------------------------------------------------------                                  
+                        ELSE IF(PhaseChangeStateOld(I) ==  -1.AND.PhaseChangeState(I) == 0) THEN                                
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I)))) 
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                           
+                            IF (EnthNew(I) < EnthOld(I) .AND. TDT(I) < TD(I)) THEN
+                               PhaseChangeState(I) = 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthOld(I) - (SpecHeatTransition* TD(I))))
+                            ELSE IF(EnthNew(I) < EnthalpyF(I) .AND. EnthNew(I) > EnthalpyM(I) .AND. TDT(I) <TD(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            ELSE IF (EnthNew(I) >= EnthalpyF(I).AND. TDT(I) <= Tr(I)) THEN
+                               PhaseChangeState(I)= 0
+                                EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I))))
+                            END IF
+ !----------------------------------------------------------------------------------------------------------------------------------                                          
+                        ELSE IF(PhaseChangeStateOld(I) == 0 .AND.PhaseChangeState(I) == 1) THEN                        
+                            
+                            EnthalpyM(I) = SpecEnthalpy(I,TDT(I), TcM, Tau1M, Tau2M, DeltaHM, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthalpyF(I) = SpecEnthalpy(I,TDT(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthRev(I) = SpecEnthalpy(I,Tr(I), TcF, Tau1F, Tau2F, DeltaHF, SpecHeatSolidPCM, SpecHeatLiquidPCM)
+                            EnthNew(I) = ((SpecHeatTransition* TDT(I)) +(EnthRev(I) - (SpecHeatTransition* Tr(I)))) 
+                            
+                       
+                        END IF 
+                    END IF  
+                END IF
+                IF (EnthNew(I)==EnthOld(I))  Then
+                    Cp=CpOld(I)
+                Else
+                    Cp = SpecHeat(I, TD(I), TDT(I), Tc, Tau1, Tau2, DeltaH, SpecHeatSolidPCM, SpecHeatLiquidPCM, EnthOld(I), EnthNew(I))
+                    
+                End IF
+
+                Cp_node(I)=Cp
+!VE END
       ELSE  ! Not phase change material
         Cp= Cpo
 
@@ -2586,14 +4999,90 @@ SUBROUTINE InteriorBCEqns(Delt,I,Lay,Surf,T,TT,Rhov,RhoT,RH,TD,TDT,EnthOld,EnthN
 !feb2012             QSteamBaseboardSurfFD+QElecBaseboardSurfFD+hconvi*(-TDT(I) + Tia)
 
     !  Pass inside conduction Flux [W/m2] to DataHeatBalanceSurface array
-  OpaqSurfInsFaceConductionFlux(Surf)= QNetSurfInside
+!VE START HEAT FLUX OUTPUT
+OpaqSurfInsFaceConductionFlux(Surf)= QNetSurfInside
+!VE END
 !  QFluxZoneToInSurf(Surf) = QNetSurfInside
   OpaqSurfInsFaceConduction(Surf)=QNetSurfInside*Surface(Surf)%Area   !for reporting as in CTF, PT
 
 RETURN
 
 END SUBROUTINE InteriorBCEqns
+!VE START
+REAL(r64) FUNCTION SpecEnthalpy(I, T, Tc, Tau1, Tau2, DeltaH, CpSolid, CpLiquid)
 
+                                           
+REAL(r64), INTENT(IN)   ::  T           ! Nodal Temperature
+REAL(r64), INTENT(IN)   ::  Tc          ! Critical (Melting/Freezing) Temperature of PCM
+REAL(r64), INTENT(IN)   ::  Tau1        ! Width of Melting Zone low
+REAL(r64), INTENT(IN)   ::  Tau2        ! Width of Melting Zone high
+REAL(r64), INTENT(IN)   ::  DeltaH      ! Latent Heat Stored in PCM During Phase Change
+REAL(r64), INTENT(IN)   ::  CpSolid     ! Specific Heat of PCM in Solid State
+REAL(r64), INTENT(IN)   ::  CpLiquid    ! Specific Heat of PCM in Liquid State
+INTEGER ,  INTENT(IN)   ::  I           ! Node Counter
+
+! INTERMEDIATE VARIABLES
+REAL                    ::  Cp1
+REAL                    ::  Cp2
+REAL(r64)               ::  Eta1
+REAL(r64)               ::  Eta2
+
+
+Cp1 = CpSolid
+Cp2 = CpLiquid
+
+    Eta1 = (DeltaH /2)* EXP(-2* ABS(T - Tc)/Tau1)
+    Eta2 = (DeltaH /2)* EXP(-2* ABS(T - Tc)/Tau2)
+
+IF (T<=Tc) THEN
+    SpecEnthalpy = ((Cp1*T)+ Eta1)
+ELSE IF(T>Tc)THEN
+    SpecEnthalpy = ((Cp1*Tc) + DeltaH + Cp2*(T-Tc)- Eta2)
+END IF
+
+END FUNCTION SpecEnthalpy
+
+REAL(r64) FUNCTION SpecHeat(I, Told, Tnew, Tc, Tau1, Tau2, DeltaH, CpSolid, CpLiquid, EnthalpyOld, EnthalpyNew) 
+
+INTEGER, INTENT(IN)     ::  I                   ! Node Counter
+REAL(r64), INTENT(IN)   ::  Told                ! Previos Timestep Nodal Temperature
+REAL(r64), INTENT(IN)   ::  Tnew                ! Current Timestep Nodal Temperature
+REAL(r64), INTENT(IN)   ::  Tc                  ! Critical (Melting/Freezing) Temperature of PCM
+REAL(r64), INTENT(IN)   ::  Tau1                ! Width of Melting Zone low
+REAL(r64), INTENT(IN)   ::  Tau2                ! Width of Melting Zone high
+REAL(r64), INTENT(IN)   ::  DeltaH              ! Latent Heat Stored in PCM During Phase Change
+REAL(r64), INTENT(IN)   ::  CpSolid             ! Specific Heat of PCM in Solid State
+REAL(r64), INTENT(IN)   ::  CpLiquid            ! Specific Heat of PCM in Liquid State
+REAL(r64), INTENT(IN)   ::  EnthalpyOld         ! Previos Timestep Nodal Enthalpy
+REAL(r64), INTENT(IN)   ::  EnthalpyNew         ! Current Timestep Nodal Enthalpy
+
+! INTERMEDIATE VARIABLES
+REAL                    ::  Cp1
+REAL                    ::  Cp2
+REAL(r64)               ::  DEta1
+REAL(r64)               ::  DEta2
+REAL(r64)               ::  T
+REAL(r64)               ::  Tau
+Real(r64)               ::  DelH
+
+Cp1 =  CpSolid
+Cp2 =  CpLiquid
+DelH =  DeltaH
+T = Tnew
+
+ DEta1 = -(DelH * (T-Tc) * EXP(-2*ABS(T-Tc)/Tau1))/(Tau1 * ABS(T-Tc))
+ DEta2 = (DelH * (T-Tc) * EXP(-2*ABS(T-Tc)/Tau2))/(Tau2 * ABS(T-Tc))
+
+IF (T<Tc) THEN
+    SpecHeat = (Cp1 + DEta1)
+ELSE IF((T==Tc))THEN
+    SpecHeat = (EnthalpyNew-EnthalpyOld) / (Tnew - TOld)
+ELSE IF(T>Tc)THEN
+    SpecHeat = (Cp2 + DEta2)
+END IF
+    
+END FUNCTION SpecHeat 
+!VE END
 SUBROUTINE CheckFDSurfaceTempLimits(SurfNum,CheckTemperature)
 
           ! SUBROUTINE INFORMATION:
