@@ -3,7 +3,7 @@
 
 !      NOTICE
 
-!      Copyright Â© 1996-2013 The Board of Trustees of the University of Illinois and The Regents of the
+!      Copyright © 1996-2013 The Board of Trustees of the University of Illinois and The Regents of the
 !      University of California through Ernest Orlando Lawrence Berkeley National Laboratory.  All rights
 !      reserved.
 
@@ -78,11 +78,11 @@
 !      (Conjunction Of Multizone Infiltration Specialists) developed by a multinational, multi-institutional
 !      effort under the auspices of the International Energy Agency's Buildings and Community Systems Agreement
 !      working group focusing on multizone air flow modeling (Annex 23) and now administered by the Swiss Federal
-!      Laboratories for Materials Testing and Research (EMPA), Division 175, Ãœberlandstrasse 129, CH-8600 DÃ¼bendorf,
+!      Laboratories for Materials Testing and Research (EMPA), Division 175, Überlandstrasse 129, CH-8600 Dübendorf,
 !      Switzerland.
 
 !      The EnergyPlus v1.2 model for displacement ventilation and cross-ventilation was developed
-!      by Guilherme Carrilho da GraÃ§a and Paul Linden of the Department of Mechanical and Aerospace
+!      by Guilherme Carrilho da Graça and Paul Linden of the Department of Mechanical and Aerospace
 !      Engineering, University of California, San Diego.
 
 !      The EnergyPlus models for UFAD served zones were developed by Anna Liu and Paul Linden at the Department
@@ -108,9 +108,6 @@
 !      by David Sailor and his students. It is based on the FASST vegetation models developed by Frankenstein and
 !      Koenig for the US Army Corps of Engineers.
 
-!      Portions of the Dual Curve with hysteresis PCM Model within the HeatBalFiniteDifferenceManager.f90 & DataHeatBalance.f90 modules,
-!      as well as example files and data sets were by Jeremiah D Crossett of NRGsim Inc. (https://github.com/nrgsim) 
-
 !      The HAMT (Heat And Moisture Transfer) model, first introduced in EnergyPlus v3.0.0 was developed by Phillip Biddulph,
 !      Complex Built Environment Systems, The Bartlett School of Graduate Studies, University College London, Gower Street,
 !      London WC1E 6BT, United Kingdom. http://www.cbes.ucl.ac.uk/.
@@ -120,6 +117,13 @@
 !      http://www.buildingsynergies.com/
 
 !      Refrigeration compressor performance data and refrigeration practices were provided by CDH Energy, Cazenovia, NY 12035.
+
+
+!      Portions of the HeatBalFiniteDifferenceManager.f90 (hystrisis PCM Model)
+!      were developed by Jeremiah D Crossett and Chad Coates NRGsim Inc based on the work of Ramprasad Chandrasekharan, 
+!      Oklahoma State University with assistance from Edwin S LEE, PhD NREL (https://github.com/nrgsim)
+
+ 
 
 !      NOTICE: The U.S. Government is granted for itself and others acting on its behalf a paid-up,
 !      nonexclusive, irrevocable, worldwide license in this data to reproduce, prepare derivative works, and
