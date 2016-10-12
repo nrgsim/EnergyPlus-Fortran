@@ -105,6 +105,7 @@ TYPE, PUBLIC :: SurfaceDataFD
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: RHreport
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: EnthOld        ! Current node enthalpy
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: EnthNew        ! Node enthalpy at new time
+  REAL(r64),    ALLOCATABLE, DIMENSION(:) :: EnthalpyH
   REAL(r64),    ALLOCATABLE, DIMENSION(:) :: EnthLast
   INTEGER                                 :: GSloopCounter = 0 ! count of inner loop iterations
   INTEGER                                 :: GSloopErrorCount = 0 ! recurring error counter

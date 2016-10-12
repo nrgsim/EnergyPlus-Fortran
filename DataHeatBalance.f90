@@ -1528,6 +1528,9 @@ Type :: AirReportVars
   REAL(r64) :: OABalanceMass          = 0.0d0 ! Mass of Air {kg} due to OA air balance
   REAL(r64) :: OABalanceAirChangeRate = 0.0d0 ! OA air balance air change rate (ach)
   REAL(r64) :: OABalanceFanElec       = 0.0d0 ! Fan Electricity {W} due to OA air balance
+  !VE for EnthalpyM and EnthalpyH variables
+  REAL(r64) :: SumEnthalpyM    = 0.0D0   ! Zone sum of EnthalpyM
+  REAL(r64) :: SumEnthalpyH    = 0.0D0   ! Zone sum of EnthalpyH
 END TYPE
 
   ! For predefined tabular reporting

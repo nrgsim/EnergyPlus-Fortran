@@ -5294,11 +5294,13 @@ SUBROUTINE CalcHeatBalanceInsideSurf(ZoneToResimulate)
   INTEGER,SAVE :: WarmupSurfTemp
   LOGICAL :: PartialResimulate
   INTEGER          :: TimeStepInDay=0 ! time step number
+  LOGICAL, ALLOCATABLE, DIMENSION(:) :: SurfaceEnthalpyRead  ! True if EnthalpyM and EnthalpyH are read
 
           ! FLOW:
   IF (FirstTime) THEN
     ALLOCATE(TempInsOld(TotSurfaces))
     ALLOCATE(RefAirTemp(TotSurfaces))
+    ALLOCATE(SurfaceEnthalpyRead(TotSurfaces))
     IF (ANY(HeatTransferAlgosUsed == UseEMPD)) THEN
       MinIterations = MinEMPDIterations
     ELSE
@@ -5321,6 +5323,9 @@ SUBROUTINE CalcHeatBalanceInsideSurf(ZoneToResimulate)
   ENDIF
 
   PartialResimulate=.false.
+  SurfaceEnthalpyRead = .False.
+  ZnAirRpt%SumEnthalpyM = 0.0D0
+  ZnAirRpt%SumEnthalpyH = 0.0D0
 
   ! determine reference air temperatures
   DO SurfNum = 1, TotSurfaces
@@ -5559,6 +5564,13 @@ SUBROUTINE CalcHeatBalanceInsideSurf(ZoneToResimulate)
 
           If(Surface(SurfNum)%HeatTransferAlgorithm  == HeatTransferModel_CondFD )  &
              CALL ManageHeatBalFiniteDiff(SurfNum,TempSurfInTmp(SurfNum),TempSurfOutTmp)
+             If(.Not. SurfaceEnthalpyRead(SurfNum)) Then
+               ZnAirRpt(ZoneNum)%SumEnthalpyM = 0.0D0
+               ZnAirRpt(ZoneNum)%SumEnthalpyH = 0.0D0
+               SurfaceEnthalpyRead(SurfNum) = .True.
+             Endif
+             ZnAirRpt(ZoneNum)%SumEnthalpyM = ZnAirRpt(ZoneNum)%SumEnthalpyM + SurfaceFD(SurfNum)%EnthalpyM
+             ZnAirRpt(ZoneNum)%SumEnthalpyH = ZnAirRpt(ZoneNum)%SumEnthalpyH + SurfaceFD(SurfNum)%EnthalpyF
 
           TH(SurfNum,1,1) = TempSurfOutTmp
 

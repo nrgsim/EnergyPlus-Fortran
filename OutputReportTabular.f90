@@ -459,7 +459,7 @@ CHARACTER(len=MaxNameLength) :: prevReportName = ''
  PRIVATE      GetInputTabularMonthly
  PRIVATE      GetInputTabularTimeBins
  PRIVATE      GetInputTabularStyle
- PRIVATE      GetInputTabularPredefined
+ PUBLIC      GetInputTabularPredefined
  PRIVATE      GetInputFuelAndPollutionFactors
  PRIVATE      GatherBinResultsForTimestep
  PRIVATE      GatherMonthlyResultsForTimestep
@@ -1284,7 +1284,9 @@ END DO !TabNum the end of the loop through the inputs objects
 !DEALLOCATE(IndexesForKeyVar)
 !#endif
 
-IF (ALLOCATED(UniqueKeynames)) DEALLOCATE(UniqueKeyNames)
+IF (ALLOCATED(UniqueKeyNames)) THEN
+  DEALLOCATE(UniqueKeyNames)
+END IF
 END SUBROUTINE InitializeTabularMonthly
 
 SUBROUTINE GetInputTabularTimeBins
@@ -1546,7 +1548,9 @@ INTEGER                     :: NumAlphas  ! Number of elements in the alpha arra
 INTEGER                     :: NumNums    ! Number of elements in the numeric array
 CHARACTER(len=MaxNameLength),DIMENSION(:),ALLOCATABLE  :: AlphArray !character string data
 REAL(r64), DIMENSION(:), ALLOCATABLE  :: NumArray  !numeric data
-INTEGER                     :: IOStat     ! IO Status when calling get input subroutine
+INTEGER                     :: IOSTAT
+CHARACTER(len=MaxNameLength):: tmp
+
 
 CALL GetObjectDefMaxArgs(CurrentModuleObject,NumParams,NumAlphas,NumNums)
 ALLOCATE(AlphArray(NumAlphas))
@@ -1665,7 +1669,8 @@ IF (WriteTabularFiles) THEN
   Write(OutputFileInits,fmta) '! <Tabular Report>,Style,Unit Conversion'
   IF (AlphArray(1) /= 'HTML') THEN
     CALL ConvertCaseToLower(AlphArray(1),AlphArray(2))
-    AlphArray(1)(2:)=AlphArray(2)(2:)
+    tmp=AlphArray(2)
+    AlphArray(1)(2:) = tmp(2:)
   ENDIF
   WRITE(OutputFileInits,"('Tabular Report,',A,',',A)") TRIM(AlphArray(1)),TRIM(AlphArray(2))
 ENDIF
