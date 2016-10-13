@@ -369,9 +369,9 @@ SUBROUTINE GetSimpleAirModelInputs(ErrorsFound)
        'System','Average',Zone(Loop)%Name)
     CALL SetupOutputVariable('Zone Air Heat Balance Air Energy Storage Rate [W]',ZnAirRpt(Loop)%CzdTdt,  &
        'System','Average',Zone(Loop)%Name)
-    CALL SetupOutputVariable('Zone Melting Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyM,  &
+    CALL SetupOutputVariable('Zone Thermal Mass Heat Absorption Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyM,  &
        'Zone','Average',Zone(Loop)%Name)
-    CALL SetupOutputVariable('Zone Freezing Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyH,  &
+    CALL SetupOutputVariable('Zone Thermal Mass Heat Rejection Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyF,  &
        'Zone','Average',Zone(Loop)%Name)
     IF (DisplayAdvancedReportVariables) THEN
       CALL SetupOutputVariable('Zone Air Heat Balance Deviation Rate [W]',ZnAirRpt(Loop)%imBalance,  &
