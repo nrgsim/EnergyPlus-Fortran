@@ -369,9 +369,9 @@ SUBROUTINE GetSimpleAirModelInputs(ErrorsFound)
        'System','Average',Zone(Loop)%Name)
     CALL SetupOutputVariable('Zone Air Heat Balance Air Energy Storage Rate [W]',ZnAirRpt(Loop)%CzdTdt,  &
        'System','Average',Zone(Loop)%Name)
-    CALL SetupOutputVariable('Zone Thermal Mass Heat Absorption Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyM,  &
+    CALL SetupOutputVariable('Zone Phase Change Material Melting Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyM,  &
        'Zone','Average',Zone(Loop)%Name)
-    CALL SetupOutputVariable('Zone Thermal Mass Heat Rejection Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyF,  &
+    CALL SetupOutputVariable('Zone Phase Change Material Freezing Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyF,  &
        'Zone','Average',Zone(Loop)%Name)
     IF (DisplayAdvancedReportVariables) THEN
       CALL SetupOutputVariable('Zone Air Heat Balance Deviation Rate [W]',ZnAirRpt(Loop)%imBalance,  &
@@ -3662,7 +3662,7 @@ END SUBROUTINE ReportZoneMeanAirTemp
 
 !     NOTICE
 !
-!     Copyright © 1996-2013 The Board of Trustees of the University of Illinois
+!     Copyright ï¿½ 1996-2013 The Board of Trustees of the University of Illinois
 !     and The Regents of the University of California through Ernest Orlando Lawrence
 !     Berkeley National Laboratory.  All rights reserved.
 !
