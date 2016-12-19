@@ -371,7 +371,7 @@ SUBROUTINE GetSimpleAirModelInputs(ErrorsFound)
        'System','Average',Zone(Loop)%Name)
     CALL SetupOutputVariable('Zone Phase Change Material Melting Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyM,  &
        'Zone','Average',Zone(Loop)%Name)
-    CALL SetupOutputVariable('Zone Phase Change Material Freezing Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyF,  &
+    CALL SetupOutputVariable('Zone Phase Change Material Freezing Enthalpy [W]',ZnAirRpt(Loop)%SumEnthalpyH,  &
        'Zone','Average',Zone(Loop)%Name)
     IF (DisplayAdvancedReportVariables) THEN
       CALL SetupOutputVariable('Zone Air Heat Balance Deviation Rate [W]',ZnAirRpt(Loop)%imBalance,  &
