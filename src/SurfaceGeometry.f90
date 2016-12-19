@@ -7425,11 +7425,13 @@ SUBROUTINE MakeMirrorSurface(SurfNum)
   REAL(r64) SurfTilt
   INTEGER N
 !  TYPE (Vector) :: temp1
+  CHARACTER(len=MaxNameLength) :: tmp
 
   NVert=SurfaceTmp(SurfNum)%Sides
   ALLOCATE(SurfaceTmp(SurfNum+1)%Vertex(NVert))
 ! doesn't work when Vertex are pointers  SurfaceTmp(SurfNum+1)=SurfaceTmp(SurfNum)
-  SurfaceTmp(SurfNum+1)%Name=SurfaceTmp(SurfNum)%Name
+  tmp = SurfaceTmp(SurfNum)%Name  
+  SurfaceTmp(SurfNum+1)%Name=tmp
   SurfaceTmp(SurfNum+1)%Construction=SurfaceTmp(SurfNum)%Construction
   SurfaceTmp(SurfNum+1)%ConstructionStoredInputValue=SurfaceTmp(SurfNum)%ConstructionStoredInputValue
   SurfaceTmp(SurfNum+1)%Class=SurfaceTmp(SurfNum)%Class
@@ -7443,11 +7445,14 @@ SUBROUTINE MakeMirrorSurface(SurfNum)
   SurfaceTmp(SurfNum+1)%Tilt=SurfaceTmp(SurfNum)%Tilt
   SurfaceTmp(SurfNum+1)%Width=SurfaceTmp(SurfNum)%Width
   SurfaceTmp(SurfNum+1)%HeatTransSurf=SurfaceTmp(SurfNum)%HeatTransSurf
-  SurfaceTmp(SurfNum+1)%BaseSurfName=SurfaceTmp(SurfNum)%BaseSurfName
+  tmp = SurfaceTmp(SurfNum)%BaseSurfName
+  SurfaceTmp(SurfNum+1)%BaseSurfName=tmp
   SurfaceTmp(SurfNum+1)%BaseSurf=SurfaceTmp(SurfNum)%BaseSurf
-  SurfaceTmp(SurfNum+1)%ZoneName=SurfaceTmp(SurfNum)%ZoneName
+  tmp = SurfaceTmp(SurfNum)%ZoneName
+  SurfaceTmp(SurfNum+1)%ZoneName=tmp
   SurfaceTmp(SurfNum+1)%Zone=SurfaceTmp(SurfNum)%Zone
-  SurfaceTmp(SurfNum+1)%ExtBoundCondName=SurfaceTmp(SurfNum)%ExtBoundCondName
+  tmp = SurfaceTmp(SurfNum)%ExtBoundCondName
+  SurfaceTmp(SurfNum+1)%ExtBoundCondName=tmp
   SurfaceTmp(SurfNum+1)%ExtBoundCond=SurfaceTmp(SurfNum)%ExtBoundCond
   SurfaceTmp(SurfNum+1)%ExtSolar=SurfaceTmp(SurfNum)%ExtSolar
   SurfaceTmp(SurfNum+1)%ExtWind=SurfaceTmp(SurfNum)%ExtWind

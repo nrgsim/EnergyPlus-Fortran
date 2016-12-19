@@ -5323,9 +5323,13 @@ SUBROUTINE CalcHeatBalanceInsideSurf(ZoneToResimulate)
   ENDIF
 
   PartialResimulate=.false.
-  SurfaceEnthalpyRead = .False.
-  ZnAirRpt%SumEnthalpyM = 0.0D0
-  ZnAirRpt%SumEnthalpyH = 0.0D0
+  DO SurfNum = 1, TotSurfaces
+    IF (FirstTime) SurfaceEnthalpyRead(SurfNum) = .FALSE.
+  END DO
+!  DO ZoneNum = 1, NumOfZones
+!    ZnAirRpt(ZoneNum)%SumEnthalpyM = 0.0D0
+!    ZnAirRpt(ZoneNum)%SumEnthalpyH = 0.0D0
+!  END DO
 
   ! determine reference air temperatures
   DO SurfNum = 1, TotSurfaces
